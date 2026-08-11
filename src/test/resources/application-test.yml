@@ -1,0 +1,56 @@
+spring:
+  application:
+    name: med-mmeebb-chatbot-test
+
+  datasource:
+    url: jdbc:h2:mem:testdb;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+  flyway:
+    enabled: false # H2 usa create-drop para testes rápidos de unidade
+
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+
+uaizap:
+  api:
+    base-url: http://localhost:8989
+    instance-token: test_token
+    instance-name: test_instance
+  outbound:
+    delay-seconds: 0
+    jitter-enabled: false
+    presence-simulation-enabled: false
+    presence-duration-seconds: 0
+  webhook:
+    secret-token: test_secret
+
+rabbitmq:
+  listeners:
+    uaizap-outbound:
+      concurrency: 1
+  queues:
+    uaizap-inbound: q.uaizap.inbound.messages.test
+    mmeebb-evaluations: q.med.mmeebb.evaluations.test
+    uaizap-outbound: q.uaizap.outbound.dispatches.test
+    dead-letter: q.med.deadletter.test
+  exchanges:
+    med-direct: ex.med.direct.test
+    dead-letter: ex.med.dlx.test
+  routing-keys:
+    inbound: rk.uaizap.inbound.test
+    evaluations: rk.med.evaluations.test
+    outbound: rk.uaizap.outbound.test
+    dead-letter: rk.med.dlq.test

@@ -1,0 +1,13 @@
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!target/*.jar
+.git
+.gitignore
+.idea
+.agents
+*.iml
+.mvn/wrapper/.cache
+*.log
+.env
+.DS_Store
+Thumbs.db
