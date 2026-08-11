@@ -40,7 +40,9 @@ Containers ativos:
 - **RabbitMQ Management**: portas `5672` (AMQP) e `15672` (Web UI)
 - **Redis**: porta `6379`
 - **Prometheus**: porta `9090` (Scraper de métricas)
-- **Grafana**: porta `3000` (Painéis e gráficos)
+- **Loki**: porta `3100` (Agregador de logs indexados)
+- **Promtail**: Coletor de logs de todos os containers
+- **Grafana**: porta `3000` (Painéis, métricas e central de logs)
 
 ---
 
@@ -48,10 +50,32 @@ Containers ativos:
 
 | Serviço | URL | Credenciais Padrão | Descrição |
 | :--- | :--- | :--- | :--- |
-| **Grafana** | `http://localhost:3000` | `admin` / `admin` | Painel visual de métricas em tempo real com dashboard pré-carregado |
+| **Grafana** | `http://localhost:3000` | `admin` / `admin` | Painel visual com Métricas e Central de Logs & Tracing |
 | **Prometheus** | `http://localhost:9090` | Sem autenticação | Console de consultas PromQL e status dos *targets* |
+| **Loki** | `http://localhost:3100` | Sem autenticação | Endpoint de logs e consultas LogQL |
 | **Actuator Endpoint** | `http://localhost:8080/actuator/prometheus` | Sem autenticação | Endpoint OpenMetrics exposto pelo Spring Boot |
 | **RabbitMQ Management** | `http://localhost:15672` | `guest` / `guest` | Monitoramento das filas AMQP (`q.uaizap.*`, `q.med.*`) |
+
+---
+
+## 🔍 Rastreabilidade Distribuída (Trace ID, Span ID e MDC)
+
+Cada requisição do WhatsApp e execução assíncrona recebe identificadores de rastreamento únicos propagados pelo **Micrometer Tracing (Brave)**:
+
+- **`traceId`**: Identificador global da transação de ponta a ponta (ex: `66b9f20e4c5b1a90`).
+- **`spanId`**: Identificador do segmento específico de execução.
+- **`studentPhone`**: Telefone do estudante de medicina enriquecido via MDC do SLF4J/Logback.
+- **`messageId`**: ID único da mensagem do WhatsApp enviado pelo gateway UaiZap.
+
+**Formato dos Logs no Console e Loki:**
+```text
+2026-08-11 12:20:00.123  INFO [med-mmeebb-chatbot,66b9f20e4c5b1a90,4c5b1a90] 42804 --- [pool-1-thread-1] b.e.u.t.service.impl.ChatbotServiceImpl : Processando mensagem do WhatsApp [5534999998888]: 'Alternativa A'
+```
+
+No Grafana, você pode buscar diretamente:
+- Por Trace ID: `{container=~".*"} |= "66b9f20e4c5b1a90"`
+- Por Telefone do Aluno: `{container=~".*"} |= "5534999998888"`
+- Por Palavra-chave: `{container=~".*"} |= "ERROR"`
 
 ---
 
@@ -73,6 +97,9 @@ O Grafana já inicia com o dashboard **"Med-MMEEBB Chatbot — Painel de Observa
 ### 3. 🌐 Tráfego HTTP & Webhooks
 - **Taxa de Requisições por Status**: Gráfico de RPS segmentado por código HTTP (200, 4xx, 5xx).
 - **Latência de Resposta HTTP**: Percentis de latência **P95** e **P99** para controle de SLA.
+
+### 4. 📜 Central de Logs & Tracing em Tempo Real (Loki)
+- Visualizador interativo de logs de todos os containers (`app`, `rabbitmq`, `postgres`, `redis`) com busca textual e highlighting.
 
 ---
 

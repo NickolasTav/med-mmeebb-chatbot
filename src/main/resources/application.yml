@@ -76,7 +76,7 @@ gemini:
   enabled: ${GEMINI_ENABLED:true}
   timeout-seconds: ${GEMINI_TIMEOUT_SECONDS:10}
 
-# Observabilidade & Métricas (Actuator + Prometheus + Micrometer)
+# Observabilidade, Métricas e Tracing (Actuator + Prometheus + Micrometer Tracing)
 management:
   endpoints:
     web:
@@ -87,11 +87,19 @@ management:
       enabled: true
     health:
       show-details: always
+  tracing:
+    sampling:
+      probability: 1.0
   metrics:
     tags:
       application: ${spring.application.name}
     distribution:
       percentiles-histogram:
         http.server.requests: true
+
+logging:
+  pattern:
+    level: "%5p [${spring.application.name:},%X{traceId:-},%X{spanId:-}]"
+
 
 
