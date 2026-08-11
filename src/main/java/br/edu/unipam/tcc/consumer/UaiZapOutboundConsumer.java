@@ -78,9 +78,10 @@ public class UaiZapOutboundConsumer {
             return;
         }
 
-        log.info("Despachando mensagem para WhatsApp [{}] via UaiZap API...", request.getNumber());
-
+        br.edu.unipam.tcc.config.CorrelationMdcHelper.setContext(request.getNumber(), null, "OUTBOUND_DISPATCH");
         try {
+            log.info("🚀 [OUTBOUND] Consumindo mensagem para envio ao WhatsApp [{}] via UaiZap API", request.getNumber());
+
             // 1. Simulação de Presença ("composing" / digitando)
             if (presenceSimulationEnabled) {
                 simulateTypingPresence(request.getNumber());
@@ -91,6 +92,7 @@ public class UaiZapOutboundConsumer {
 
             // 2. Envio da Mensagem de Texto
             sendTextMessage(request.getNumber(), request.getText());
+            log.info("📲 [OUTBOUND] Mensagem enviada com sucesso para o WhatsApp [{}]", request.getNumber());
 
             // 3. Aplicação do Delay Anti-Spam / Anti-Ban com Jitter
             long totalDelayMs = calculateEffectiveDelayMs();
@@ -98,12 +100,14 @@ public class UaiZapOutboundConsumer {
             long remainingDelayMs = Math.max(0L, totalDelayMs - spentDelayMs);
 
             if (remainingDelayMs > 0) {
-                log.info("Aguardando delay seguro de {}ms para próximo disparo (Anti-Ban Meta)...", remainingDelayMs);
+                log.info("⏱️ [OUTBOUND] Aplicando delay seguro de {}ms para próximo disparo (Anti-Ban Meta)", remainingDelayMs);
                 sleep(remainingDelayMs);
             }
 
         } catch (Exception e) {
-            log.error("Erro ao processar disparo de mensagem via UaiZap: {}", e.getMessage(), e);
+            log.error("❌ Erro ao despachar mensagem via UaiZap: {}", e.getMessage(), e);
+        } finally {
+            br.edu.unipam.tcc.config.CorrelationMdcHelper.clearContext();
         }
     }
 

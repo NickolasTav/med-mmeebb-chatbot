@@ -5,14 +5,14 @@
     <springProperty scope="context" name="appName" source="spring.application.name" defaultValue="med-mmeebb-chatbot"/>
     <springProperty scope="context" name="lokiUrl" source="logging.loki.url" defaultValue="http://localhost:3100/loki/api/v1/push"/>
 
-    <!-- Appender de Console Padrão Colorido -->
+    <!-- Appender de Console (Terminal do IntelliJ) -->
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
-            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %highlight(%-5level) [%cyan(${appName}),%yellow(%X{traceId:-}),%magenta(%X{spanId:-})] %green(%X{studentPhone:-}) %clr(%logger{36}){cyan} : %msg%n</pattern>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %highlight(%-5level) [%cyan(${appName}),%yellow(%X{traceId:-})] %green(%X{studentPhone:-}) %clr(%logger{36}){cyan} : %msg%n</pattern>
         </encoder>
     </appender>
 
-    <!-- Appender do Grafana Loki via HTTP (Streaming direto para o Loki) -->
+    <!-- Appender do Grafana Loki - Focado exclusivamente em Logs Relevantes da Aplicação -->
     <springProfile name="!test">
         <appender name="LOKI" class="com.github.loki4j.logback.Loki4jAppender">
             <http>
@@ -20,15 +20,27 @@
             </http>
             <format>
                 <label>
-                    <pattern>app=${appName},host=${HOSTNAME},level=%level</pattern>
+                    <pattern>app=${appName},level=%level,logger=%logger{20}</pattern>
                 </label>
                 <message>
-                    <pattern>[%X{traceId:-},%X{spanId:-}] studentPhone=%X{studentPhone:-} messageId=%X{messageId:-} logger=%logger{36} : %msg</pattern>
+                    <pattern>[Trace: %X{traceId:-none}] [Aluno: %X{studentPhone:-N/A}] %msg</pattern>
                 </message>
             </format>
         </appender>
 
-        <root level="INFO">
+        <!-- Apenas o pacote da aplicação envia logs INFO para o Loki -->
+        <logger name="br.edu.unipam.tcc" level="INFO" additivity="false">
+            <appender-ref ref="CONSOLE"/>
+            <appender-ref ref="LOKI"/>
+        </logger>
+
+        <!-- Frameworks e terceiros apenas enviam WARN e ERROR -->
+        <logger name="org.springframework" level="WARN"/>
+        <logger name="org.hibernate" level="WARN"/>
+        <logger name="com.zaxxer.hikari" level="WARN"/>
+        <logger name="org.apache" level="WARN"/>
+
+        <root level="WARN">
             <appender-ref ref="CONSOLE"/>
             <appender-ref ref="LOKI"/>
         </root>

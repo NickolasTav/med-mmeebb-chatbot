@@ -43,6 +43,7 @@ public class GeminiAiServiceImpl implements GeminiAiService {
         }
 
         try {
+            log.info("🤖 Classificando intenção com Google Gemini [{}] para o estudante [{}]", properties.getModel(), studentName);
             String specialtiesList = (availableSpecialties != null && !availableSpecialties.isEmpty())
                     ? String.join(", ", availableSpecialties)
                     : "PEDIATRIA, CLINICA_MEDICA, CIRURGIA_GERAL, GINECOLOGIA_OBSTETRICIA, SAUDE_COLETIVA";
@@ -80,6 +81,7 @@ public class GeminiAiServiceImpl implements GeminiAiService {
         }
 
         try {
+            log.info("🩺 Gerando explicação do Tutor Clínico com Google Gemini [{}] para o estudante [{}]", properties.getModel(), studentName);
             String prompt = String.format("""
                     Você é um Preceptor e Tutor Médico especialista auxiliando um interno de medicina chamado %s.
                     

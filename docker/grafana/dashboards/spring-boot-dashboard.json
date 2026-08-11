@@ -507,12 +507,12 @@
         {
           "datasource": { "type": "loki", "uid": "Loki" },
           "editorMode": "code",
-          "expr": "{app=\"med-mmeebb-chatbot\"} or {container=~\"tcc_med.*\"}",
+          "expr": "{app=\"med-mmeebb-chatbot\"}",
           "queryType": "range",
           "refId": "A"
         }
       ],
-      "title": "Logs da Aplicação & Infraestrutura (Spring Boot, RabbitMQ, PostgreSQL, Redis)",
+      "title": "Logs Importantes da Aplicação (WhatsApp, MMEEBB, Gemini IA)",
       "type": "logs"
     }
   ],

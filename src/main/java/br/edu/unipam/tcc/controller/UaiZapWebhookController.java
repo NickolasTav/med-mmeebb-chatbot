@@ -34,12 +34,23 @@ public class UaiZapWebhookController {
             return ResponseEntity.ok(Map.of("status", "IGNORED_FROM_ME"));
         }
 
-        log.info("Webhook UaiZap recebido: evento [{}] do remetente [{}]", 
-                payload.getEvent(), payload.extractSenderPhone());
+        String phone = payload.extractSenderPhone();
+        String messageId = (payload.getData() != null && payload.getData().getKey() != null)
+                ? payload.getData().getKey().getId()
+                : null;
 
-        // Envia imediatamente para a fila assíncrona RabbitMQ (SLA < 100ms)
-        rabbitTemplate.convertAndSend(directExchange, inboundRoutingKey, payload);
+        br.edu.unipam.tcc.config.CorrelationMdcHelper.setContext(phone, messageId, "WEBHOOK_RECEIVE");
+        try {
+            log.info("📥 Webhook UaiZap recebido: evento [{}] do remetente [{}] (MessageId: {})", 
+                    payload.getEvent(), phone, messageId);
 
-        return ResponseEntity.ok(Map.of("status", "QUEUED", "event", payload.getEvent()));
+            // Envia imediatamente para a fila assíncrona RabbitMQ (SLA < 100ms)
+            rabbitTemplate.convertAndSend(directExchange, inboundRoutingKey, payload);
+            log.info("🐰 Mensagem enfileirada no RabbitMQ [Exchange: '{}', Key: '{}'] com sucesso", directExchange, inboundRoutingKey);
+
+            return ResponseEntity.ok(Map.of("status", "QUEUED", "event", payload.getEvent()));
+        } finally {
+            br.edu.unipam.tcc.config.CorrelationMdcHelper.clearContext();
+        }
     }
 }
