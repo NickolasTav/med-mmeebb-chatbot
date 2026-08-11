@@ -7,6 +7,8 @@
   <img src="https://img.shields.io/badge/PostgreSQL-16%20%2B%20pgvector-blue.svg?style=for-the-badge&logo=postgresql" alt="PostgreSQL" />
   <img src="https://img.shields.io/badge/RabbitMQ-3%20Management-orange.svg?style=for-the-badge&logo=rabbitmq" alt="RabbitMQ" />
   <img src="https://img.shields.io/badge/Redis-7%20Alpine-red.svg?style=for-the-badge&logo=redis" alt="Redis" />
+  <img src="https://img.shields.io/badge/Prometheus-v2.51-E6522C.svg?style=for-the-badge&logo=prometheus" alt="Prometheus" />
+  <img src="https://img.shields.io/badge/Grafana-v10.4-F46800.svg?style=for-the-badge&logo=grafana" alt="Grafana" />
   <img src="https://img.shields.io/badge/Docker-Multi--Stage-2496ED.svg?style=for-the-badge&logo=docker" alt="Docker" />
   <img src="https://img.shields.io/badge/CI%2FCD-GitHub%20Actions-blue.svg?style=for-the-badge&logo=githubactions" alt="GitHub Actions" />
 </p>
@@ -230,6 +232,10 @@ docker compose ps
 - **PostgreSQL**: `localhost:5432`
 - **RabbitMQ Management**: [http://localhost:15672](http://localhost:15672) (Usuário: `guest` / Senha: `guest`)
 - **Redis**: `localhost:6379`
+- **Prometheus**: [http://localhost:9090](http://localhost:9090)
+- **Grafana (Dashboards em Tempo Real)**: [http://localhost:3000](http://localhost:3000) (Usuário: `admin` / Senha: `admin`)
+
+> 📊 **Documentação Completa de Monitoramento**: Veja o [**Guia de Observabilidade (Prometheus & Grafana)**](docs/GUIA_OBSERVABILIDADE_GRAFANA.md).
 
 ---
 

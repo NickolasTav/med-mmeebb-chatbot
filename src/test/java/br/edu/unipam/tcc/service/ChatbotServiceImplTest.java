@@ -55,6 +55,9 @@ class ChatbotServiceImplTest {
     @Mock
     private GeminiAiService geminiAiService;
 
+    @Mock
+    private br.edu.unipam.tcc.service.AppMetricsService appMetricsService;
+
     private MessageService messageService;
     private ChatbotService chatbotService;
 
@@ -76,7 +79,8 @@ class ChatbotServiceImplTest {
                 mmeebbEngineService,
                 messageSender,
                 messageService,
-                geminiAiService
+                geminiAiService,
+                appMetricsService
         );
     }
 

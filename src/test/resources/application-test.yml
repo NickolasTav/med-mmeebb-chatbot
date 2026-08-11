@@ -54,3 +54,29 @@ rabbitmq:
     evaluations: rk.med.evaluations.test
     outbound: rk.uaizap.outbound.test
     dead-letter: rk.med.dlq.test
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+  endpoint:
+    prometheus:
+      enabled: true
+    health:
+      show-details: always
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+  health:
+    rabbit:
+      enabled: false
+    redis:
+      enabled: false
+    mail:
+      enabled: false
+  metrics:
+    tags:
+      application: ${spring.application.name}
+

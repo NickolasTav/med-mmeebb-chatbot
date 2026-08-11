@@ -76,3 +76,22 @@ gemini:
   enabled: ${GEMINI_ENABLED:true}
   timeout-seconds: ${GEMINI_TIMEOUT_SECONDS:10}
 
+# Observabilidade & Métricas (Actuator + Prometheus + Micrometer)
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    prometheus:
+      enabled: true
+    health:
+      show-details: always
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+
+

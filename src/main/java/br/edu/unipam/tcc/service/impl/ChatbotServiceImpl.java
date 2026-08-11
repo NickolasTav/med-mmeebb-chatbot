@@ -38,6 +38,7 @@ public class ChatbotServiceImpl implements ChatbotService {
     private final WhatsAppMessageSender messageSender;
     private final MessageService messageService;
     private final GeminiAiService geminiAiService;
+    private final br.edu.unipam.tcc.service.AppMetricsService appMetricsService;
 
     @Override
     @Transactional
@@ -54,6 +55,7 @@ public class ChatbotServiceImpl implements ChatbotService {
         }
 
         log.info("Processando mensagem do WhatsApp [{}]: '{}'", phone, messageText);
+        appMetricsService.recordWhatsAppMessage("INBOUND", "TEXT");
 
         Optional<Student> studentOpt = studentRepository.findByPhoneNumber(phone);
         if (studentOpt.isEmpty()) {
@@ -110,6 +112,7 @@ public class ChatbotServiceImpl implements ChatbotService {
                     && isClinicalDoubtText(messageText)) {
 
                 Question question = lastInteraction.getQuestion();
+                appMetricsService.recordAiInteraction("CLINICAL_TUTOR", false);
                 String tutorExplanation = geminiAiService.generateClinicalTutorExplanation(
                         student.getFullName(),
                         question.getStatement(),
@@ -128,6 +131,7 @@ public class ChatbotServiceImpl implements ChatbotService {
                 .toList();
 
         AiIntentResult aiResult = geminiAiService.analyzeMessage(student.getFullName(), messageText, specialties);
+        appMetricsService.recordAiInteraction("INTENT_CLASSIFIER", !aiResult.isHandledByAi());
 
         if (aiResult.isHandledByAi()) {
             switch (aiResult.getIntent()) {
@@ -240,6 +244,11 @@ public class ChatbotServiceImpl implements ChatbotService {
                 isCorrect,
                 LocalDate.now()
         );
+
+        String specialtyCode = (question.getTopic() != null && question.getTopic().getSpecialty() != null)
+                ? question.getTopic().getSpecialty().getCode()
+                : "GERAL";
+        appMetricsService.recordReviewAnswer(isCorrect, specialtyCode);
 
         currentSchedule.setNIndex(result.getNIndex());
         currentSchedule.setIntervalDays(result.getIntervalDays());
