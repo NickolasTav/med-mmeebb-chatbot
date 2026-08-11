@@ -89,7 +89,7 @@ services:
       - loki
 
   loki:
-    image: grafana/loki:2.9.4
+    image: grafana/loki:3.0.0
     container_name: tcc_med_loki
     restart: always
     user: "0:0"
@@ -101,9 +101,11 @@ services:
     command: -config.file=/etc/loki/local-config.yaml
 
   promtail:
-    image: grafana/promtail:2.9.4
+    image: grafana/promtail:3.0.0
     container_name: tcc_med_promtail
     restart: always
+    environment:
+      - DOCKER_API_VERSION=1.44
     volumes:
       - ./docker/promtail/promtail-config.yml:/etc/promtail/config.yml:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
