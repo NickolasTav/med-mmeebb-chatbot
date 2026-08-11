@@ -323,7 +323,7 @@ public class ChatbotServiceImpl implements ChatbotService {
                 student.getInternPeriod(),
                 totalAnswered,
                 correctCount,
-                String.format("%.1f", accuracyRate),
+                String.format(messageService.getCurrentLocale(), "%.1f", accuracyRate),
                 schedules.size()
         );
 
