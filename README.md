@@ -406,6 +406,43 @@ O repositório possui pipelines automatizados configurados no **GitHub Actions**
 
 ---
 
+## 🌿 Governança Git & Padrão de Commits (Conventional Commits)
+
+A branch `main` é estritamente protegida (**Branch Protection Rules**). Alterações diretas na `main` são bloqueadas e exigem **Pull Requests (PRs)** com testes automatizados 100% aprovados.
+
+### 1. Fluxo de Trabalho (Git Flow)
+1. **Crie uma branch descritiva**:
+   ```bash
+   git checkout -b feat/nome-da-funcionalidade
+   # ou fix/nome-do-bug, docs/ajuste-documentacao, etc.
+   ```
+2. **Faça os commits seguindo o padrão semântico**:
+   ```bash
+   git commit -m "feat(modulo): descricao do que foi feito"
+   ```
+3. **Envie a branch e abra o Pull Request**:
+   ```bash
+   git push -u origin feat/nome-da-funcionalidade
+   ```
+4. **Merge após aprovação do CI**: O PR roda a suíte de testes automaticamente. Com o check verde ✅, o merge é liberado.
+
+### 2. Tabela de Prefixos Semânticos
+
+| Prefixo | Tipo | Exemplo |
+| :--- | :--- | :--- |
+| **`feat`** | Nova funcionalidade ou recurso | `feat(engine): ajusta formula de repeticao mmeebb` |
+| **`fix`** | Correção de bug ou erro | `fix(uaizap): trata timeout de conexao no webhook` |
+| **`docs`** | Alteração em documentações | `docs(readme): adiciona guia do fluxo git` |
+| **`refactor`** | Refatoração sem mudar comportamento | `refactor(service): modulariza tratamento de mensagens` |
+| **`test`** | Criação ou alteração de testes | `test(consumer): adiciona testes do rabbitmq` |
+| **`chore`** | Tarefas de manutenção, configs, dependências | `chore(deps): atualiza versoes do maven` |
+| **`ci`** | Workflows do GitHub Actions | `ci(actions): adiciona linter de prs` |
+| **`perf`** | Melhorias de desempenho | `perf(db): cria indice na tabela de questoes` |
+
+> 💡 **Hook Local**: O repositório inclui um hook em `.githooks/commit-msg` que valida suas mensagens de commit localmente antes de serem criadas.
+
+---
+
 ## 👥 Autoria e Agradecimentos
 
 - **Autor**: Níckolas Tavares do Nascimento
