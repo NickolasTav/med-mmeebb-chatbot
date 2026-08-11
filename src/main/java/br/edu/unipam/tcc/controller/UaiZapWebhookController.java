@@ -29,26 +29,37 @@ public class UaiZapWebhookController {
     }
 
     @PostMapping
-    public ResponseEntity<Map<String, Object>> handleWebhook(@RequestBody UaiZapWebhookPayload payload) {
-        if (payload.getData() != null && payload.getData().getKey() != null && Boolean.TRUE.equals(payload.getData().getKey().getFromMe())) {
+    public ResponseEntity<Map<String, Object>> handleWebhook(@RequestBody(required = false) UaiZapWebhookPayload payload) {
+        if (payload == null) {
+            return ResponseEntity.ok(Map.of("status", "IGNORED_EMPTY"));
+        }
+
+        if (payload.isFromMe()) {
             return ResponseEntity.ok(Map.of("status", "IGNORED_FROM_ME"));
         }
 
+        if (payload.isGroup()) {
+            return ResponseEntity.ok(Map.of("status", "IGNORED_GROUP"));
+        }
+
         String phone = payload.extractSenderPhone();
-        String messageId = (payload.getData() != null && payload.getData().getKey() != null)
-                ? payload.getData().getKey().getId()
-                : null;
+        String messageId = payload.extractMessageId();
+        String eventName = payload.getEffectiveEvent();
 
         br.edu.unipam.tcc.config.CorrelationMdcHelper.setContext(phone, messageId, "WEBHOOK_RECEIVE");
         try {
             log.info("📥 Webhook UaiZap recebido: evento [{}] do remetente [{}] (MessageId: {})", 
-                    payload.getEvent(), phone, messageId);
+                    eventName, phone, messageId);
 
             // Envia imediatamente para a fila assíncrona RabbitMQ (SLA < 100ms)
             rabbitTemplate.convertAndSend(directExchange, inboundRoutingKey, payload);
             log.info("🐰 Mensagem enfileirada no RabbitMQ [Exchange: '{}', Key: '{}'] com sucesso", directExchange, inboundRoutingKey);
 
-            return ResponseEntity.ok(Map.of("status", "QUEUED", "event", payload.getEvent()));
+            java.util.Map<String, Object> responseBody = new java.util.LinkedHashMap<>();
+            responseBody.put("status", "QUEUED");
+            responseBody.put("event", eventName);
+
+            return ResponseEntity.ok(responseBody);
         } finally {
             br.edu.unipam.tcc.config.CorrelationMdcHelper.clearContext();
         }

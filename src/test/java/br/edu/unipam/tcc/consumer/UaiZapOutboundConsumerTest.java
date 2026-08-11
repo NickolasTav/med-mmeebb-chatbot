@@ -55,15 +55,15 @@ class UaiZapOutboundConsumerTest {
 
         consumer.consumeOutboundDispatch(request);
 
-        // Verifica envio de presença e envio de texto
+        // Verifica envio de presença e envio de texto (padrão oficial UAZAPI /send/text e /chat/presence)
         verify(restTemplate, times(1)).postForEntity(
-                eq("https://api.uaizap.com.br/chat/sendPresence/unipam_med_bot"),
+                eq("https://api.uaizap.com.br/chat/presence"),
                 any(HttpEntity.class),
                 eq(String.class)
         );
 
         verify(restTemplate, times(1)).postForEntity(
-                eq("https://api.uaizap.com.br/message/sendText/unipam_med_bot"),
+                eq("https://api.uaizap.com.br/send/text"),
                 any(HttpEntity.class),
                 eq(String.class)
         );

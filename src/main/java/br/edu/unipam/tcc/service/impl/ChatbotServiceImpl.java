@@ -54,9 +54,7 @@ public class ChatbotServiceImpl implements ChatbotService {
             return;
         }
 
-        String messageId = (payload.getData() != null && payload.getData().getKey() != null)
-                ? payload.getData().getKey().getId()
-                : null;
+        String messageId = payload.extractMessageId();
 
         br.edu.unipam.tcc.config.CorrelationMdcHelper.setContext(phone, messageId, "PROCESS_MESSAGE");
         try {
@@ -210,9 +208,7 @@ public class ChatbotServiceImpl implements ChatbotService {
     }
 
     private void handleStudentRegistration(String phone, UaiZapWebhookPayload payload) {
-        String pushName = (payload.getData() != null && payload.getData().getPushName() != null)
-                ? payload.getData().getPushName()
-                : "Estudante";
+        String pushName = payload.extractSenderName();
 
         Student newStudent = Student.builder()
                 .phoneNumber(phone)

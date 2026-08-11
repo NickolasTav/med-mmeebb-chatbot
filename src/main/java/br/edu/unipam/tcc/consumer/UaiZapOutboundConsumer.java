@@ -121,17 +121,28 @@ public class UaiZapOutboundConsumer {
                 return;
             }
 
-            String url = String.format("%s/chat/sendPresence/%s", baseUrl, instanceName);
             HttpHeaders headers = createHeaders();
             Map<String, Object> body = Map.of(
                     "number", number,
-                    "presence", "composing",
-                    "delay", Math.max(1, presenceDurationSeconds) * 1000
+                    "presence", "composing"
             );
 
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
-            ResponseEntity<String> response = restTemplate.postForEntity(url, entity, String.class);
-            log.debug("Resposta UaiZap Presença: status [{}]", response.getStatusCode());
+            String uazapiUrl = baseUrl.endsWith("/") ? (baseUrl + "chat/presence") : (baseUrl + "/chat/presence");
+            try {
+                ResponseEntity<String> response = restTemplate.postForEntity(uazapiUrl, entity, String.class);
+                log.debug("Resposta UaiZap Presença (/chat/presence): status [{}]", response.getStatusCode());
+            } catch (Exception e) {
+                String legacyUrl = String.format("%s/chat/sendPresence/%s", baseUrl, instanceName);
+                Map<String, Object> legacyBody = Map.of(
+                        "number", number,
+                        "presence", "composing",
+                        "delay", Math.max(1, presenceDurationSeconds) * 1000
+                );
+                HttpEntity<Map<String, Object>> legacyEntity = new HttpEntity<>(legacyBody, headers);
+                ResponseEntity<String> response = restTemplate.postForEntity(legacyUrl, legacyEntity, String.class);
+                log.debug("Resposta UaiZap Presença (/chat/sendPresence): status [{}]", response.getStatusCode());
+            }
 
         } catch (Exception e) {
             log.warn("Falha não-bloqueante ao simular presença no UaiZap para [{}]: {}", number, e.getMessage());
@@ -147,7 +158,6 @@ public class UaiZapOutboundConsumer {
             return;
         }
 
-        String url = String.format("%s/message/sendText/%s", baseUrl, instanceName);
         HttpHeaders headers = createHeaders();
         Map<String, Object> body = Map.of(
                 "number", number,
@@ -155,8 +165,16 @@ public class UaiZapOutboundConsumer {
         );
 
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
-        ResponseEntity<String> response = restTemplate.postForEntity(url, entity, String.class);
-        log.info("Resposta UaiZap API (Texto): status [{}]", response.getStatusCode());
+        String uazapiUrl = baseUrl.endsWith("/") ? (baseUrl + "send/text") : (baseUrl + "/send/text");
+        try {
+            ResponseEntity<String> response = restTemplate.postForEntity(uazapiUrl, entity, String.class);
+            log.info("Resposta UaiZap API (/send/text): status [{}]", response.getStatusCode());
+        } catch (Exception e) {
+            log.warn("Tentativa em /send/text falhou ({}), tentando rota alternativa /message/sendText/{}", e.getMessage(), instanceName);
+            String legacyUrl = String.format("%s/message/sendText/%s", baseUrl, instanceName);
+            ResponseEntity<String> response = restTemplate.postForEntity(legacyUrl, entity, String.class);
+            log.info("Resposta UaiZap API (/message/sendText): status [{}]", response.getStatusCode());
+        }
     }
 
     /**
@@ -181,6 +199,7 @@ public class UaiZapOutboundConsumer {
     private HttpHeaders createHeaders() {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set("token", instanceToken);
         headers.set("apikey", instanceToken);
         return headers;
     }

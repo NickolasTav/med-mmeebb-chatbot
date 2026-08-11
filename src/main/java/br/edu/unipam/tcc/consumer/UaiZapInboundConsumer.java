@@ -21,9 +21,7 @@ public class UaiZapInboundConsumer {
         }
 
         String phone = payload.extractSenderPhone();
-        String messageId = (payload.getData() != null && payload.getData().getKey() != null)
-                ? payload.getData().getKey().getId()
-                : null;
+        String messageId = payload.extractMessageId();
 
         br.edu.unipam.tcc.config.CorrelationMdcHelper.setContext(phone, messageId, "RABBITMQ_INBOUND_CONSUME");
         try {
