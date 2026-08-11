@@ -208,7 +208,9 @@ GEMINI_MODEL=gemini-1.5-flash
 GEMINI_ENABLED=true
 ```
 
-> 📖 **Guia Passo a Passo**: Veja o [**Guia de Configuração do UaiZap**](docs/GUIA_CONFIGURACAO_UAIZAP.md) para conectar o WhatsApp via QR Code e configurar o Webhook.
+> 📖 **Guias de Integração do WhatsApp**: 
+> - [**Documentação Técnica da API Uazapi (uazapi.dev)**](docs/UAZAPI_DOCUMENTACAO_OFICIAL.md) — Referência de endpoints (`/send/text`, `/send/menu`, `/send/media`), headers `token`, payloads e webhooks.
+> - [**Guia Passo a Passo de Configuração do UaiZap**](docs/GUIA_CONFIGURACAO_UAIZAP.md) — Conexão via QR Code e setup no painel.
 
 
 ---
