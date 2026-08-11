@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# Git Hook: commit-msg
+# Valida se a mensagem de commit segue o padrao Conventional Commits
+# ==============================================================================
+
+commit_msg_file="$1"
+commit_msg=$(head -n 1 "$commit_msg_file")
+
+# Expressao regular para Conventional Commits:
+# Exemplos validos:
+#   feat: adiciona calculo de revisao
+#   fix(engine): corrige intervalo 2^n
+#   docs: atualiza documentacao do ngrok
+#   test(service): adiciona testes unitarios
+#   chore: atualiza dependencias maven
+#   ci: ajusta workflow do github actions
+#   refactor: simplifica processamento de webhook
+#   perf: otimiza query de questoes pendentes
+pattern="^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-zA-Z0-9_\.\-]+\))?: .{3,}"
+
+# Ignorar commits automaticos de merge
+if [[ "$commit_msg" =~ ^Merge ]]; then
+    exit 0
+fi
+
+if ! [[ "$commit_msg" =~ $pattern ]]; then
+    echo ""
+    echo "❌ [ERRO DE PADRONIZAÇÃO DE COMMIT]"
+    echo "----------------------------------------------------------------------"
+    echo "Sua mensagem de commit não segue o padrão Conventional Commits:"
+    echo "  👉 \"$commit_msg\""
+    echo ""
+    echo "💡 A mensagem deve iniciar com um dos prefixos abaixo seguido de ':' e espaço:"
+    echo "   - feat:     Nova funcionalidade ou recurso"
+    echo "   - fix:      Correção de bug/erro"
+    echo "   - docs:     Alterações em documentações e README"
+    echo "   - refactor: Refatoração de código sem alterar comportamento"
+    echo "   - test:     Criação ou alteração de testes"
+    echo "   - chore:    Tarefas de manutenção, configs e scripts"
+    echo "   - ci:       Alterações em workflows do GitHub Actions"
+    echo "   - perf:     Melhorias de desempenho"
+    echo ""
+    echo "📌 Exemplo correto: git commit -m \"feat: adiciona novo endpoint de questoes\""
+    echo "----------------------------------------------------------------------"
+    exit 1
+fi
+
+exit 0
