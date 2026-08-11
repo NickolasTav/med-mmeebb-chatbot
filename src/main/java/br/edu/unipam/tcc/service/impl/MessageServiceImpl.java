@@ -43,7 +43,10 @@ public class MessageServiceImpl implements MessageService {
 
     @Override
     public Locale getCurrentLocale() {
-        Locale locale = LocaleContextHolder.getLocale();
-        return locale != null ? locale : I18nConfig.DEFAULT_LOCALE;
+        org.springframework.context.i18n.LocaleContext localeContext = LocaleContextHolder.getLocaleContext();
+        if (localeContext != null && localeContext.getLocale() != null) {
+            return localeContext.getLocale();
+        }
+        return I18nConfig.DEFAULT_LOCALE;
     }
 }
