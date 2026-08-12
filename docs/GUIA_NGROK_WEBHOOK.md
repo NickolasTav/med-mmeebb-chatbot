@@ -59,21 +59,24 @@ O Ngrok gratuito oferece **1 domínio estático gratuito vitalício** para que s
 
 ---
 
-## 🚀 4. Iniciando o Túnel Local
+### Modo 1: Via Python / Pyngrok (Recomendado) 🐍
+Execute o script em Python que baixa o executável e já formata a URL do webhook pronta para você:
+```bash
+python scripts/start-tunnel.py
+```
 
-### Modo 1: Via Script Facilitador (Já incluído no projeto)
+### Modo 2: Via PowerShell / Batch
 Na raiz do projeto, execute:
 ```powershell
 .\scripts\start-tunnel.ps1
 ```
-ou dê dois cliques no arquivo:
-```cmd
-scripts\start-tunnel.bat
-```
+ou dê dois cliques no arquivo `scripts\start-tunnel.bat`.
 
-### Modo 2: Via Comando Direto
+### Modo 3: Via Comando Direto
 ```bash
 ngrok http 8080
+# ou
+pyngrok http 8080
 ```
 
 Você verá uma tela parecida com esta no terminal:

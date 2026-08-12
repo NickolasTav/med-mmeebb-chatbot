@@ -16,12 +16,23 @@ public class UaiZapInboundConsumer {
 
     @RabbitListener(queues = "${rabbitmq.queues.uaizap-inbound:q.uaizap.inbound.messages}")
     public void consumeInboundMessage(UaiZapWebhookPayload payload) {
-        log.info("Processando mensagem recebida na fila RabbitMQ: remetente [{}]", payload.extractSenderPhone());
+        if (payload == null) {
+            return;
+        }
+
+        String phone = payload.extractSenderPhone();
+        String messageId = payload.extractMessageId();
+
+        br.edu.unipam.tcc.config.CorrelationMdcHelper.setContext(phone, messageId, "RABBITMQ_INBOUND_CONSUME");
         try {
+            log.info("🐰 Consumindo mensagem da fila RabbitMQ [q.uaizap.inbound.messages] para o aluno [{}]", phone);
             chatbotService.processIncomingMessage(payload);
+            log.info("✅ Mensagem processada pelo ChatbotService com sucesso para o aluno [{}]", phone);
         } catch (Exception e) {
-            log.error("Erro ao processar mensagem do webhook: {}", e.getMessage(), e);
+            log.error("❌ Erro ao processar mensagem do webhook: {}", e.getMessage(), e);
             throw e; // Encaminha para Dead Letter Queue se exceder retries
+        } finally {
+            br.edu.unipam.tcc.config.CorrelationMdcHelper.clearContext();
         }
     }
 }

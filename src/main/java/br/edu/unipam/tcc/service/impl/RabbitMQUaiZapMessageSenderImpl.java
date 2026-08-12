@@ -41,7 +41,7 @@ public class RabbitMQUaiZapMessageSenderImpl implements WhatsAppMessageSender {
                 .build();
 
         rabbitTemplate.convertAndSend(directExchange, outboundRoutingKey, request);
-        log.info("Mensagem de texto enviada para a fila RabbitMQ [{}] -> {}", outboundRoutingKey, phoneNumber);
+        log.info("📤 Resposta enfileirada no RabbitMQ [{}] para envio ao WhatsApp [{}]", outboundRoutingKey, phoneNumber);
     }
 
     @Override
