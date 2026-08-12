@@ -256,19 +256,36 @@ A aplicação iniciará na porta **8080**. As migrações do banco de dados ser�
 ---
 
 ### 6. Conectando o Webhook do WhatsApp Localmente (Ngrok)
-Para receber mensagens reais do WhatsApp na sua máquina local de desenvolvimento:
+Para receber mensagens reais do WhatsApp na sua máquina local de desenvolvimento durante os testes:
 
-1. Execute o script facilitador de inicialização do túnel:
-   ```powershell
-   # Windows (PowerShell)
-   .\scripts\start-tunnel.ps1
+#### A. Escolha uma das formas de iniciar o túnel:
+- **Modo 1: Via Python / Pyngrok (Recomendado)**:
+  ```bash
+  python scripts/start-tunnel.py
+  ```
+  *(Verifica o ambiente, autentica automaticamente se houver `NGROK_AUTHTOKEN` no `.env` e exibe a URL pronta do webhook).*
 
-   # Ou duplo clique em:
-   scripts\start-tunnel.bat
-   ```
-2. Cadastre a URL pública gerada no painel do seu provedor de WhatsApp (ex: UaiZap):
-   `https://sua-url.ngrok-free.app/api/v1/webhooks/uaizap`
-3. 📖 **Guia Completo**: Para detalhes de instalação, authtoken e domínio estático gratuito, consulte o [**Guia do Ngrok**](docs/GUIA_NGROK_WEBHOOK.md).
+- **Modo 2: Via PowerShell / Batch (Windows)**:
+  ```powershell
+  .\scripts\start-tunnel.ps1
+  # Ou duplo clique em: scripts\start-tunnel.bat
+  ```
+
+- **Modo 3: Via Comando CLI Direto**:
+  ```bash
+  ngrok http 8080
+  # ou com domínio estático gratuito:
+  ngrok http 8080 --domain=seu-dominio.ngrok-free.app
+  ```
+
+#### B. Cadastre o Webhook no Gateway do WhatsApp (ex: UaiZap):
+1. **URL do Webhook**: `https://sua-url.ngrok-free.app/api/v1/webhooks/uaizap`
+2. **Eventos**: Marque `messages.upsert` (mensagens recebidas).
+3. **Secret Token (Header)**: `X-Webhook-Secret: med_secret_key_123` *(mesmo valor do `.env`)*.
+
+#### C. Inspecione e Reenvie Mensagens em Tempo Real:
+- Acesse o painel web do Ngrok em [http://localhost:4040](http://localhost:4040) para inspecionar todos os payloads JSON e utilizar o botão **"Replay"** para retestar mensagens instantaneamente.
+- 📖 **Guia Completo**: Para instruções de instalação do Ngrok, obtenção de authtoken e registro de domínio estático gratuito, consulte o [**Guia Detalhado do Ngrok**](docs/GUIA_NGROK_WEBHOOK.md).
 
 ---
 
