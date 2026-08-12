@@ -17,7 +17,13 @@ public class MmeebbDailyReviewScheduler {
 
     @Scheduled(cron = "${scheduling.mmeebb-cron:0 0 8 * * *}")
     public void executeDailyReviewDispatch() {
-        log.info("Trigger agendado disparado: executando rotina de revisões MMEEBB...");
-        reviewSchedulerService.executeDailyScheduledDispatches();
+        br.edu.unipam.tcc.config.CorrelationMdcHelper.setContext("SYSTEM", "CRON_DAILY_REVIEW", "SCHEDULED_DISPATCH");
+        try {
+            log.info("Trigger agendado disparado: executando rotina de revisões MMEEBB...");
+            reviewSchedulerService.executeDailyScheduledDispatches();
+        } finally {
+            br.edu.unipam.tcc.config.CorrelationMdcHelper.clearContext();
+        }
     }
 }
+
