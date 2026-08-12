@@ -36,6 +36,7 @@ public class ChatbotServiceImpl implements ChatbotService {
     private final MessageService messageService;
     private final GeminiAiService geminiAiService;
     private final br.edu.unipam.tcc.service.AppMetricsService appMetricsService;
+    private final br.edu.unipam.tcc.service.UnipamAcademicIntegrationService unipamAcademicIntegrationService;
 
     @Override
     @Transactional
@@ -60,7 +61,7 @@ public class ChatbotServiceImpl implements ChatbotService {
 
             Optional<Student> studentOpt = studentRepository.findByPhoneNumber(phone);
             if (studentOpt.isEmpty()) {
-                handleStudentRegistration(phone, payload);
+                handleStudentRegistration(phone, messageText, payload);
                 return;
             }
 
@@ -204,27 +205,75 @@ public class ChatbotServiceImpl implements ChatbotService {
         sendMainMenuMessage(student);
     }
 
-    private void handleStudentRegistration(String phone, UaiZapWebhookPayload payload) {
-        String pushName = payload.extractSenderName();
+    private void handleStudentRegistration(String phone, String messageText, UaiZapWebhookPayload payload) {
+        // 1. Tenta identificar via número de WhatsApp cadastrado na UNIPAM
+        Optional<br.edu.unipam.tcc.dto.UnipamStudentProfileDto> profileOpt = unipamAcademicIntegrationService.findStudentByPhoneNumber(phone);
+        if (profileOpt.isPresent()) {
+            registerStudentFromUnipamProfile(phone, profileOpt.get(), false);
+            return;
+        }
 
-        Course defaultCourse = courseRepository.findByCodeIgnoreCase("MEDICINA")
-                .or(courseRepository::findFirstByActiveTrueOrderByIdAsc)
-                .orElse(null);
+        // 2. Se o número não foi encontrado, verifica se a mensagem enviada é um RA válido (ex: 23000388)
+        String trimmed = (messageText != null) ? messageText.trim() : "";
+        if (isRaFormat(trimmed)) {
+            Optional<br.edu.unipam.tcc.dto.UnipamStudentProfileDto> raProfileOpt = unipamAcademicIntegrationService.findStudentByRa(trimmed);
+            if (raProfileOpt.isPresent()) {
+                // Atualiza telefone na base UNIPAM e registra o estudante
+                br.edu.unipam.tcc.dto.UnipamStudentProfileDto updatedProfile = unipamAcademicIntegrationService.linkPhoneNumberToRa(trimmed, phone);
+                registerStudentFromUnipamProfile(phone, updatedProfile, true);
+                return;
+            } else {
+                String invalidRaMsg = messageService.getMessage("bot.registration.ra_invalid", trimmed);
+                messageSender.sendTextMessage(phone, invalidRaMsg);
+                return;
+            }
+        }
 
-        Student newStudent = Student.builder()
-                .phoneNumber(phone)
-                .fullName(pushName != null && !pushName.isBlank() ? pushName : "Estudante")
-                .course(defaultCourse)
-                .academicPeriod(defaultCourse != null && "MEDICINA".equalsIgnoreCase(defaultCourse.getCode()) ? 9 : 1)
-                .internPeriod(defaultCourse != null && "MEDICINA".equalsIgnoreCase(defaultCourse.getCode()) ? 9 : 1)
-                .preferredStudyTime(LocalTime.of(8, 0))
-                .active(true)
-                .build();
-        studentRepository.save(newStudent);
+        // 3. Telefone desconhecido e não é RA: Envia mensagem orientando a digitar o RA
+        String notFoundMsg = messageService.getMessage("bot.registration.not_found");
+        messageSender.sendTextMessage(phone, notFoundMsg);
+    }
 
-        String courseName = defaultCourse != null ? defaultCourse.getName() : "Graduação";
-        String welcomeMsg = messageService.getMessage("bot.welcome", newStudent.getFullName(), courseName);
+    private void registerStudentFromUnipamProfile(String phone, br.edu.unipam.tcc.dto.UnipamStudentProfileDto profile, boolean isManualLinking) {
+        Course course = null;
+        if (profile.getCourseCode() != null) {
+            course = courseRepository.findByCodeIgnoreCase(profile.getCourseCode()).orElse(null);
+        }
+        if (course == null) {
+            course = courseRepository.findByCodeIgnoreCase("MEDICINA")
+                    .or(courseRepository::findFirstByActiveTrueOrderByIdAsc)
+                    .orElse(null);
+        }
+
+        // Verifica se já existe Student com esse RA (caso esteja apenas trocando de telefone)
+        Student student = studentRepository.findByRa(profile.getRa())
+                .orElseGet(() -> Student.builder().ra(profile.getRa()).build());
+
+        student.setPhoneNumber(phone);
+        student.setFullName(profile.getFullName());
+        student.setCourse(course);
+        student.setAcademicPeriod(profile.getAcademicPeriod() != null ? profile.getAcademicPeriod() : 1);
+        student.setInternPeriod(profile.getAcademicPeriod() != null ? profile.getAcademicPeriod() : 9);
+        student.setPreferredStudyTime(LocalTime.of(8, 0));
+        student.setActive(true);
+
+        studentRepository.save(student);
+
+        String courseName = course != null ? course.getName() : (profile.getCourseName() != null ? profile.getCourseName() : "Graduação");
+        String welcomeMsg = messageService.getMessage("bot.welcome", student.getFullName(), courseName, student.getRa());
+
+        if (isManualLinking) {
+            String linkedHeader = messageService.getMessage("bot.registration.ra_linked", student.getRa());
+            welcomeMsg = linkedHeader + "\n\n" + welcomeMsg;
+        }
+
         messageSender.sendTextMessage(phone, welcomeMsg);
+    }
+
+    private boolean isRaFormat(String text) {
+        if (text == null) return false;
+        String clean = text.trim();
+        return clean.matches("^\\d{6,12}$");
     }
 
     private void handleQuestionAnswer(Student student, ReviewSchedule currentSchedule, char selectedLetter, String incomingMessage) {
@@ -328,12 +377,14 @@ public class ChatbotServiceImpl implements ChatbotService {
         long correctCount = logs.stream().filter(InteractionLog::getIsCorrect).count();
         double accuracyRate = totalAnswered > 0 ? ((double) correctCount / totalAnswered) * 100.0 : 0.0;
 
+        String raDisplay = student.getRa() != null ? student.getRa() : "N/D";
         String courseName = student.getCourse() != null ? student.getCourse().getName() : "Graduação";
         int period = student.getAcademicPeriod() != null ? student.getAcademicPeriod() : (student.getInternPeriod() != null ? student.getInternPeriod() : 1);
 
         String statsMsg = messageService.getMessage(
                 "bot.stats.title",
                 student.getFullName(),
+                raDisplay,
                 courseName,
                 period,
                 totalAnswered,
