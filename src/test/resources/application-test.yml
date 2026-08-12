@@ -39,21 +39,12 @@ uaizap:
 
 rabbitmq:
   listeners:
-    uaizap-outbound:
+    outbound:
       concurrency: 1
   queues:
-    uaizap-inbound: q.uaizap.inbound.messages.test
-    mmeebb-evaluations: q.med.mmeebb.evaluations.test
-    uaizap-outbound: q.uaizap.outbound.dispatches.test
-    dead-letter: q.med.deadletter.test
-  exchanges:
-    med-direct: ex.med.direct.test
-    dead-letter: ex.med.dlx.test
-  routing-keys:
-    inbound: rk.uaizap.inbound.test
-    evaluations: rk.med.evaluations.test
-    outbound: rk.uaizap.outbound.test
-    dead-letter: rk.med.dlq.test
+    inbound: q.uaizap.inbound.test
+    outbound: q.uaizap.outbound.test
+    dlq: q.med.dlq.test
 
 management:
   endpoints:
