@@ -5,10 +5,7 @@ import br.edu.unipam.tcc.dto.MmeebbCalculationResult;
 import br.edu.unipam.tcc.dto.UaiZapWebhookPayload;
 import br.edu.unipam.tcc.dto.gemini.AiIntentResult;
 import br.edu.unipam.tcc.entity.*;
-import br.edu.unipam.tcc.repository.InteractionLogRepository;
-import br.edu.unipam.tcc.repository.ReviewScheduleRepository;
-import br.edu.unipam.tcc.repository.SpecialtyRepository;
-import br.edu.unipam.tcc.repository.StudentRepository;
+import br.edu.unipam.tcc.repository.*;
 import br.edu.unipam.tcc.service.impl.ChatbotServiceImpl;
 import br.edu.unipam.tcc.service.impl.MessageServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
@@ -36,6 +33,9 @@ class ChatbotServiceImplTest {
 
     @Mock
     private StudentRepository studentRepository;
+
+    @Mock
+    private CourseRepository courseRepository;
 
     @Mock
     private ReviewScheduleRepository reviewScheduleRepository;
@@ -73,6 +73,7 @@ class ChatbotServiceImplTest {
 
         chatbotService = new ChatbotServiceImpl(
                 studentRepository,
+                courseRepository,
                 reviewScheduleRepository,
                 interactionLogRepository,
                 specialtyRepository,
@@ -85,10 +86,13 @@ class ChatbotServiceImplTest {
     }
 
     @Test
-    @DisplayName("Para novo estudante, deve realizar cadastro e enviar mensagem de boas-vindas i18n")
-    void shouldRegisterNewStudent() {
+    @DisplayName("Para novo estudante, deve realizar cadastro associando ao curso e enviar mensagem de boas-vindas i18n")
+    void shouldRegisterNewStudentWithCourse() {
         String phone = "5534999999999";
+        Course medCourse = Course.builder().id(1L).code("MEDICINA").name("Medicina").build();
+
         when(studentRepository.findByPhoneNumber(phone)).thenReturn(Optional.empty());
+        when(courseRepository.findByCodeIgnoreCase("MEDICINA")).thenReturn(Optional.of(medCourse));
 
         UaiZapWebhookPayload payload = createPayload(phone, "Olá");
 
@@ -97,32 +101,39 @@ class ChatbotServiceImplTest {
         verify(studentRepository).save(any(Student.class));
         ArgumentCaptor<String> msgCaptor = ArgumentCaptor.forClass(String.class);
         verify(messageSender).sendTextMessage(eq(phone), msgCaptor.capture());
-        assertThat(msgCaptor.getValue()).contains("Bem-vindo(a) ao *Bot de Repetição Espaçada do Internato");
+        assertThat(msgCaptor.getValue()).contains("Bem-vindo(a) ao *Bot MMEEBB de Repetição Espaçada (Medicina - UNIPAM)*");
     }
 
     @Test
-    @DisplayName("Deve responder à mensagem de texto natural 'ajuda' com texto i18n (Caminho Rápido)")
-    void shouldRespondToNaturalHelpWord() {
+    @DisplayName("Deve responder ao comando rápido '/ajuda' com texto i18n via Fast-Path")
+    void shouldRespondToFastPathHelpCommand() {
         String phone = "5534999999999";
-        Student student = Student.builder().phoneNumber(phone).fullName("Dr. Lucas").build();
+        Student student = Student.builder().phoneNumber(phone).fullName("Lucas").build();
         when(studentRepository.findByPhoneNumber(phone)).thenReturn(Optional.of(student));
 
-        UaiZapWebhookPayload payload = createPayload(phone, "Ajuda");
+        UaiZapWebhookPayload payload = createPayload(phone, "/ajuda");
 
         chatbotService.processIncomingMessage(payload);
 
         ArgumentCaptor<String> msgCaptor = ArgumentCaptor.forClass(String.class);
         verify(messageSender).sendTextMessage(eq(phone), msgCaptor.capture());
         assertThat(msgCaptor.getValue()).contains("CENTRAL DE AJUDA - BOT MMEEBB");
-        verifyNoInteractions(geminiAiService); // Garante que foi processado no fast-path sem gastar IA
+        verifyNoInteractions(geminiAiService); // Fast-Path sem consumo de tokens
     }
 
     @Test
-    @DisplayName("Deve responder à mensagem de texto natural 'desempenho' com cálculo de acurácia i18n (Caminho Rápido)")
-    void shouldRespondToNaturalStatsWord() {
+    @DisplayName("Deve responder ao comando '/stats' com métricas acadêmicas por curso e período")
+    void shouldRespondToStatsCommandWithAcademicMetrics() {
         UUID studentId = UUID.randomUUID();
         String phone = "5534999999999";
-        Student student = Student.builder().id(studentId).phoneNumber(phone).fullName("Dra. Paula").internPeriod(10).build();
+        Course lawCourse = Course.builder().name("Direito").build();
+        Student student = Student.builder()
+                .id(studentId)
+                .phoneNumber(phone)
+                .fullName("Paula")
+                .course(lawCourse)
+                .academicPeriod(5)
+                .build();
 
         when(studentRepository.findByPhoneNumber(phone)).thenReturn(Optional.of(student));
         when(interactionLogRepository.findByStudentIdOrderByAnsweredAtDesc(studentId)).thenReturn(List.of(
@@ -134,32 +145,34 @@ class ChatbotServiceImplTest {
                 ReviewSchedule.builder().id(1L).build()
         ));
 
-        UaiZapWebhookPayload payload = createPayload(phone, "desempenho");
+        UaiZapWebhookPayload payload = createPayload(phone, "/stats");
 
         chatbotService.processIncomingMessage(payload);
 
         ArgumentCaptor<String> msgCaptor = ArgumentCaptor.forClass(String.class);
         verify(messageSender).sendTextMessage(eq(phone), msgCaptor.capture());
-        assertThat(msgCaptor.getValue()).contains("SEU DESEMPENHO NO INTERNATO MÉDICO");
+        assertThat(msgCaptor.getValue()).contains("SEU DESEMPENHO ACADÊMICO (MMEEBB)");
+        assertThat(msgCaptor.getValue()).contains("Curso:* Direito (5º Período)");
         assertThat(msgCaptor.getValue()).contains("Total de Questões Respondidas: *3*");
         assertThat(msgCaptor.getValue()).contains("Taxa de Retenção / Precisão: *66,7%*");
         verifyNoInteractions(geminiAiService);
     }
 
     @Test
-    @DisplayName("Deve processar resposta correta de questão, avançar n no MMEEBB e enviar feedback i18n")
-    void shouldProcessCorrectQuestionAnswer() {
+    @DisplayName("Deve processar resposta atômica 'B' de questão, avançar n no MMEEBB e enviar feedback")
+    void shouldProcessAtomicQuestionAnswer() {
         UUID studentId = UUID.randomUUID();
         String phone = "5534999999999";
-        Student student = Student.builder().id(studentId).phoneNumber(phone).fullName("Dr. Pedro").build();
+        Student student = Student.builder().id(studentId).phoneNumber(phone).fullName("Pedro").build();
 
         Question question = Question.builder()
                 .id(1L)
                 .statement("Tratamento de Choque Séptico")
                 .clinicalExplanation("Cristaloides 30ml/kg e antibiótico na 1ª hora.")
+                .explanation("Cristaloides 30ml/kg e antibiótico na 1ª hora.")
                 .options(List.of(
-                        QuestionOption.builder().letter('A').optionText("Cristaloides + ATB").isCorrect(true).build(),
-                        QuestionOption.builder().letter('B').optionText("Apenas repouso").isCorrect(false).build()
+                        QuestionOption.builder().letter('A').optionText("Apenas repouso").isCorrect(false).build(),
+                        QuestionOption.builder().letter('B').optionText("Cristaloides + ATB").isCorrect(true).build()
                 ))
                 .build();
 
@@ -176,7 +189,7 @@ class ChatbotServiceImplTest {
         when(studentRepository.findByPhoneNumber(phone)).thenReturn(Optional.of(student));
         when(reviewScheduleRepository.findCurrentlyAwaitingAnswer(studentId))
                 .thenReturn(List.of(schedule))
-                .thenReturn(List.of()); // Sem mais pendências após responder
+                .thenReturn(List.of());
 
         when(mmeebbEngineService.processReviewFeedback(eq(0), eq(0), eq(true), any(LocalDate.class)))
                 .thenReturn(MmeebbCalculationResult.builder()
@@ -186,7 +199,7 @@ class ChatbotServiceImplTest {
                         .nextDueDate(LocalDate.now().plusDays(2))
                         .build());
 
-        UaiZapWebhookPayload payload = createPayload(phone, "Alternativa A");
+        UaiZapWebhookPayload payload = createPayload(phone, "b");
 
         chatbotService.processIncomingMessage(payload);
 
@@ -198,20 +211,74 @@ class ChatbotServiceImplTest {
 
         ArgumentCaptor<String> msgCaptor = ArgumentCaptor.forClass(String.class);
         verify(messageSender, atLeastOnce()).sendTextMessage(eq(phone), msgCaptor.capture());
-        assertThat(msgCaptor.getAllValues().get(0)).contains("PARABÉNS! RESPOSTA CORRETA!");
+        assertThat(msgCaptor.getAllValues().get(0)).contains("PARABÉNS! RESPOSTA CORRETA! (Alternativa B)");
     }
 
     @Test
-    @DisplayName("Deve acionar o Modo Tutor Clínico do Gemini quando o aluno enviar dúvida sobre a questão recente")
-    void shouldTriggerClinicalTutorModeOnRecentDoubt() {
+    @DisplayName("Deve usar o Gemini para extrair resposta discursiva e pontuar no MMEEBB")
+    void shouldExtractDiscursiveAnswerViaAiAndScore() {
         UUID studentId = UUID.randomUUID();
         String phone = "5534999999999";
-        Student student = Student.builder().id(studentId).phoneNumber(phone).fullName("Dra. Beatriz").build();
+        Student student = Student.builder().id(studentId).phoneNumber(phone).fullName("Mariana").build();
+
+        Question question = Question.builder()
+                .id(2L)
+                .statement("Qual remédio constitucional é cabível?")
+                .explanation("O Habeas Data destina-se a proteger dados pessoais.")
+                .options(List.of(
+                        QuestionOption.builder().letter('A').optionText("Mandado de Segurança").isCorrect(false).build(),
+                        QuestionOption.builder().letter('B').optionText("Habeas Data").isCorrect(true).build()
+                ))
+                .build();
+
+        ReviewSchedule schedule = ReviewSchedule.builder()
+                .id(20L)
+                .student(student)
+                .question(question)
+                .nIndex(1)
+                .consecutiveCorrect(1)
+                .status("NOTIFIED")
+                .build();
+
+        when(studentRepository.findByPhoneNumber(phone)).thenReturn(Optional.of(student));
+        when(reviewScheduleRepository.findCurrentlyAwaitingAnswer(studentId))
+                .thenReturn(List.of(schedule))
+                .thenReturn(List.of());
+
+        when(geminiAiService.analyzeMessage(eq(student), anyString(), eq(question), any(), anyList()))
+                .thenReturn(AiIntentResult.builder()
+                        .intent(AiIntentResult.IntentType.ANSWER_ACTIVE_QUESTION)
+                        .extractedOption('B')
+                        .handledByAi(true)
+                        .build());
+
+        when(mmeebbEngineService.processReviewFeedback(eq(1), eq(1), eq(true), any(LocalDate.class)))
+                .thenReturn(MmeebbCalculationResult.builder()
+                        .nIndex(2)
+                        .intervalDays(4)
+                        .consecutiveCorrect(2)
+                        .nextDueDate(LocalDate.now().plusDays(4))
+                        .build());
+
+        UaiZapWebhookPayload payload = createPayload(phone, "Acredito com certeza que a opção correta seja a letra B!");
+
+        chatbotService.processIncomingMessage(payload);
+
+        verify(reviewScheduleRepository).save(schedule);
+        assertThat(schedule.getNIndex()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("Deve acionar o Modo Tutor Acadêmico quando o aluno tiver dúvida em linguagem natural")
+    void shouldTriggerAcademicTutorModeOnNaturalDoubt() {
+        UUID studentId = UUID.randomUUID();
+        String phone = "5534999999999";
+        Student student = Student.builder().id(studentId).phoneNumber(phone).fullName("Beatriz").build();
 
         Question question = Question.builder()
                 .id(5L)
-                .statement("Crise asmática grave em pediatria")
-                .clinicalExplanation("Uso imediato de beta-2 agonista inalatório.")
+                .statement("Crise asmática grave")
+                .explanation("Uso imediato de beta-2 agonista inalatório.")
                 .build();
 
         InteractionLog recentLog = InteractionLog.builder()
@@ -224,47 +291,23 @@ class ChatbotServiceImplTest {
         when(reviewScheduleRepository.findCurrentlyAwaitingAnswer(studentId)).thenReturn(List.of());
         when(interactionLogRepository.findByStudentIdOrderByAnsweredAtDesc(studentId)).thenReturn(List.of(recentLog));
 
-        when(geminiAiService.generateClinicalTutorExplanation(eq("Dra. Beatriz"), anyString(), anyString(), anyString()))
-                .thenReturn("Na crise de asma grave, o salbutamol atua relaxando a musculatura lisa bronquial rapidamente.");
-
-        UaiZapWebhookPayload payload = createPayload(phone, "Não entendi por que não posso usar corticoide isolado de início?");
-
-        chatbotService.processIncomingMessage(payload);
-
-        ArgumentCaptor<String> msgCaptor = ArgumentCaptor.forClass(String.class);
-        verify(messageSender).sendTextMessage(eq(phone), msgCaptor.capture());
-        assertThat(msgCaptor.getValue()).contains("Tutor Clínico (IA):");
-        assertThat(msgCaptor.getValue()).contains("salbutamol atua relaxando");
-    }
-
-    @Test
-    @DisplayName("Deve delegar mensagem aberta para o Gemini e responder com mensagem conversacional de estudo")
-    void shouldDelegateOpenEndedMessageToGemini() {
-        UUID studentId = UUID.randomUUID();
-        String phone = "5534999999999";
-        Student student = Student.builder().id(studentId).phoneNumber(phone).fullName("Dr. Carlos").build();
-
-        when(studentRepository.findByPhoneNumber(phone)).thenReturn(Optional.of(student));
-        when(reviewScheduleRepository.findCurrentlyAwaitingAnswer(studentId)).thenReturn(List.of());
-        when(interactionLogRepository.findByStudentIdOrderByAnsweredAtDesc(studentId)).thenReturn(List.of());
-        when(specialtyRepository.findAll()).thenReturn(List.of(
-                Specialty.builder().code("CARDIOLOGIA").name("Cardiologia").build()
-        ));
-
-        when(geminiAiService.analyzeMessage(eq("Dr. Carlos"), anyString(), anyList()))
+        when(geminiAiService.analyzeMessage(eq(student), anyString(), isNull(), eq(recentLog), anyList()))
                 .thenReturn(AiIntentResult.builder()
-                        .intent(AiIntentResult.IntentType.GENERAL_CHAT)
-                        .responseMessage("Bons estudos no plantão, Dr. Carlos! Estou pronto para enviar revisões.")
+                        .intent(AiIntentResult.IntentType.EXPLAIN_CONCEPT)
                         .handledByAi(true)
                         .build());
 
-        UaiZapWebhookPayload payload = createPayload(phone, "Bom dia bot, hoje estou no plantão do internato");
+        when(geminiAiService.generateAcademicTutorExplanation(eq(student), eq(question), anyString()))
+                .thenReturn("Na crise de asma grave, o salbutamol atua relaxando a musculatura lisa bronquial rapidamente.");
+
+        UaiZapWebhookPayload payload = createPayload(phone, "Não entendi nada dessa questão, me explica?");
 
         chatbotService.processIncomingMessage(payload);
 
         ArgumentCaptor<String> msgCaptor = ArgumentCaptor.forClass(String.class);
         verify(messageSender).sendTextMessage(eq(phone), msgCaptor.capture());
-        assertThat(msgCaptor.getValue()).contains("Bons estudos no plantão, Dr. Carlos!");
+        assertThat(msgCaptor.getValue()).contains("Tutor Acadêmico (IA):");
+        assertThat(msgCaptor.getValue()).contains("salbutamol atua relaxando");
     }
 
     private UaiZapWebhookPayload createPayload(String phone, String text) {

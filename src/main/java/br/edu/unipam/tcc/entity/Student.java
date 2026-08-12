@@ -28,6 +28,14 @@ public class Student {
     @Column(name = "full_name", nullable = false, length = 150)
     private String fullName;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "course_id")
+    private Course course;
+
+    @Column(name = "academic_period", nullable = false)
+    @Builder.Default
+    private Integer academicPeriod = 1;
+
     @Column(name = "intern_period", nullable = false)
     @Builder.Default
     private Integer internPeriod = 9;

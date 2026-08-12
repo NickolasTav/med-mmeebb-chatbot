@@ -4,10 +4,7 @@ import br.edu.unipam.tcc.dto.MmeebbCalculationResult;
 import br.edu.unipam.tcc.dto.UaiZapWebhookPayload;
 import br.edu.unipam.tcc.dto.gemini.AiIntentResult;
 import br.edu.unipam.tcc.entity.*;
-import br.edu.unipam.tcc.repository.InteractionLogRepository;
-import br.edu.unipam.tcc.repository.ReviewScheduleRepository;
-import br.edu.unipam.tcc.repository.SpecialtyRepository;
-import br.edu.unipam.tcc.repository.StudentRepository;
+import br.edu.unipam.tcc.repository.*;
 import br.edu.unipam.tcc.service.ChatbotService;
 import br.edu.unipam.tcc.service.GeminiAiService;
 import br.edu.unipam.tcc.service.MessageService;
@@ -18,7 +15,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.text.Normalizer;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
@@ -31,6 +27,7 @@ import java.util.Optional;
 public class ChatbotServiceImpl implements ChatbotService {
 
     private final StudentRepository studentRepository;
+    private final CourseRepository courseRepository;
     private final ReviewScheduleRepository reviewScheduleRepository;
     private final InteractionLogRepository interactionLogRepository;
     private final SpecialtyRepository specialtyRepository;
@@ -68,80 +65,112 @@ public class ChatbotServiceImpl implements ChatbotService {
             }
 
             Student student = studentOpt.get();
-            String normalized = normalize(messageText);
+            String trimmed = messageText.trim();
 
-        // =========================================================================
-        // CAMINHO RÁPIDO DETERMINÍSTICO (Custo Zero & Latência < 50ms)
-        // =========================================================================
-        if (isHelpIntent(normalized)) {
-            sendHelpMessage(phone);
-            return;
-        }
-
-        if (isStatsIntent(normalized)) {
-            sendPerformanceStats(student);
-            return;
-        }
-
-        if (isReviewIntent(normalized)) {
-            handleManualReviewTrigger(student);
-            return;
-        }
-
-        // Se o estudante possui uma questão ativa aguardando resposta
-        List<ReviewSchedule> pendingSchedules = reviewScheduleRepository.findCurrentlyAwaitingAnswer(student.getId());
-        if (!pendingSchedules.isEmpty()) {
-            String cleanAnswer = messageText.toUpperCase().replaceAll("[^A-E]", "");
-            if (!cleanAnswer.isEmpty()) {
-                handleQuestionAnswer(student, pendingSchedules.get(0), messageText);
+            // =========================================================================
+            // 1. FAST-PATH DETERMINÍSTICO (Estritamente para comandos diretos e opções)
+            // =========================================================================
+            if (trimmed.equalsIgnoreCase("/ajuda") || trimmed.equalsIgnoreCase("/help")) {
+                sendHelpMessage(phone);
                 return;
             }
-        }
 
-        // =========================================================================
-        // CAMINHO COGNITIVO COM GOOGLE GEMINI (Padrão A: Híbrido)
-        // =========================================================================
-        handleHybridAiMessage(student, messageText);
+            if (trimmed.equalsIgnoreCase("/stats") || trimmed.equalsIgnoreCase("/desempenho")) {
+                sendPerformanceStats(student);
+                return;
+            }
+
+            if (trimmed.equalsIgnoreCase("/revisar") || trimmed.equalsIgnoreCase("/estudar")) {
+                handleManualReviewTrigger(student);
+                return;
+            }
+
+            // Se o estudante possui uma questão ativa aguardando resposta
+            List<ReviewSchedule> pendingSchedules = reviewScheduleRepository.findCurrentlyAwaitingAnswer(student.getId());
+            ReviewSchedule activeSchedule = pendingSchedules.isEmpty() ? null : pendingSchedules.get(0);
+
+            // Fast-Path de resposta atômica (ex: "A", "b", "1", "2")
+            if (activeSchedule != null && isAtomicOption(trimmed)) {
+                char selectedLetter = mapToOptionLetter(trimmed);
+                handleQuestionAnswer(student, activeSchedule, selectedLetter, messageText);
+                return;
+            }
+
+            // =========================================================================
+            // 2. CAMINHO COGNITIVO COM GOOGLE GEMINI (NLU Semântico Multi-Curso)
+            // =========================================================================
+            handleCognitiveAiMessage(student, messageText, activeSchedule);
+
         } finally {
             br.edu.unipam.tcc.config.CorrelationMdcHelper.clearContext();
         }
     }
 
-    private void handleHybridAiMessage(Student student, String messageText) {
-        String phone = student.getPhoneNumber();
+    private boolean isAtomicOption(String text) {
+        if (text == null || text.length() > 2) return false;
+        String upper = text.toUpperCase().trim();
+        return upper.matches("^[A-E]$") || upper.matches("^[1-5]$");
+    }
 
-        // 1. Verifica se é uma dúvida sobre a última questão respondida recentemente (Modo Tutor Clínico)
-        List<InteractionLog> recentLogs = interactionLogRepository.findByStudentIdOrderByAnsweredAtDesc(student.getId());
-        if (!recentLogs.isEmpty()) {
-            InteractionLog lastInteraction = recentLogs.get(0);
-            if (lastInteraction.getAnsweredAt() != null
-                    && lastInteraction.getAnsweredAt().isAfter(OffsetDateTime.now().minusMinutes(15))
-                    && isClinicalDoubtText(messageText)) {
-
-                Question question = lastInteraction.getQuestion();
-                appMetricsService.recordAiInteraction("CLINICAL_TUTOR", false);
-                String tutorExplanation = geminiAiService.generateClinicalTutorExplanation(
-                        student.getFullName(),
-                        question.getStatement(),
-                        question.getClinicalExplanation(),
-                        messageText
-                );
-
-                messageSender.sendTextMessage(phone, "🩺 *Tutor Clínico (IA):*\n" + tutorExplanation);
-                return;
-            }
+    private char mapToOptionLetter(String text) {
+        String clean = text.toUpperCase().trim();
+        if (clean.matches("^[1-5]$")) {
+            int num = Integer.parseInt(clean);
+            return (char) ('A' + (num - 1));
         }
+        return clean.charAt(0);
+    }
 
-        // 2. Classificação de Intenção e NLU via Gemini
-        List<String> specialties = specialtyRepository.findAll().stream()
+    private void handleCognitiveAiMessage(Student student, String messageText, ReviewSchedule activeSchedule) {
+        String phone = student.getPhoneNumber();
+        Question activeQuestion = activeSchedule != null ? activeSchedule.getQuestion() : null;
+
+        // Busca última interação recente (últimos 30 minutos)
+        List<InteractionLog> recentLogs = interactionLogRepository.findByStudentIdOrderByAnsweredAtDesc(student.getId());
+        InteractionLog lastInteraction = recentLogs.isEmpty() ? null : recentLogs.get(0);
+
+        List<String> availableAreas = specialtyRepository.findAll().stream()
                 .map(Specialty::getCode)
                 .toList();
 
-        AiIntentResult aiResult = geminiAiService.analyzeMessage(student.getFullName(), messageText, specialties);
+        // Análise semântica rica com contexto completo
+        AiIntentResult aiResult = geminiAiService.analyzeMessage(
+                student,
+                messageText,
+                activeQuestion,
+                lastInteraction,
+                availableAreas
+        );
+
         appMetricsService.recordAiInteraction("INTENT_CLASSIFIER", !aiResult.isHandledByAi());
 
         if (aiResult.isHandledByAi()) {
             switch (aiResult.getIntent()) {
+                case ANSWER_ACTIVE_QUESTION -> {
+                    if (activeSchedule != null && aiResult.getExtractedOption() != null) {
+                        handleQuestionAnswer(student, activeSchedule, aiResult.getExtractedOption(), messageText);
+                        return;
+                    }
+                }
+                case EXPLAIN_CONCEPT -> {
+                    Question questionToExplain = activeQuestion != null
+                            ? activeQuestion
+                            : (lastInteraction != null ? lastInteraction.getQuestion() : null);
+
+                    if (questionToExplain != null) {
+                        appMetricsService.recordAiInteraction("ACADEMIC_TUTOR", false);
+                        String tutorExplanation = geminiAiService.generateAcademicTutorExplanation(
+                                student,
+                                questionToExplain,
+                                messageText
+                        );
+                        messageSender.sendTextMessage(phone, "🎓 *Tutor Acadêmico (IA):*\n" + tutorExplanation);
+                        return;
+                    } else if (aiResult.getResponseMessage() != null && !aiResult.getResponseMessage().isBlank()) {
+                        messageSender.sendTextMessage(phone, aiResult.getResponseMessage());
+                        return;
+                    }
+                }
                 case REQUEST_REVIEW -> {
                     if (aiResult.getResponseMessage() != null && !aiResult.getResponseMessage().isBlank()) {
                         messageSender.sendTextMessage(phone, aiResult.getResponseMessage());
@@ -154,10 +183,14 @@ public class ChatbotServiceImpl implements ChatbotService {
                     return;
                 }
                 case HELP -> {
-                    sendHelpMessage(phone);
+                    if (aiResult.getResponseMessage() != null && !aiResult.getResponseMessage().isBlank()) {
+                        messageSender.sendTextMessage(phone, aiResult.getResponseMessage());
+                    } else {
+                        sendHelpMessage(phone);
+                    }
                     return;
                 }
-                case EXPLAIN_CONCEPT, GENERAL_CHAT -> {
+                case GENERAL_CHAT -> {
                     messageSender.sendTextMessage(phone, aiResult.getResponseMessage());
                     return;
                 }
@@ -167,74 +200,37 @@ public class ChatbotServiceImpl implements ChatbotService {
             }
         }
 
-        // 3. Fallback Gracioso / Menu Principal
+        // Fallback Gracioso / Menu Principal
         sendMainMenuMessage(student);
-    }
-
-    private boolean isClinicalDoubtText(String text) {
-        String n = normalize(text);
-        return n.contains("por que") || n.contains("porque") || n.contains("pq")
-                || n.contains("nao entendi") || n.contains("duvida") || n.contains("explica")
-                || n.contains("gabarito") || n.contains("justificativa") || n.contains("fisiopatologia");
-    }
-
-    private boolean isHelpIntent(String text) {
-        return text.equals("ajuda") || text.equals("/ajuda") || text.equals("!ajuda")
-                || text.equals("help") || text.equals("/help")
-                || text.equals("socorro") || text.equals("como funciona")
-                || text.equals("menu") || text.equals("opcoes") || text.equals("duvida");
-    }
-
-    private boolean isStatsIntent(String text) {
-        return text.equals("stats") || text.equals("/stats") || text.equals("!stats")
-                || text.equals("desempenho") || text.equals("meu desempenho")
-                || text.equals("estatisticas") || text.equals("como estou")
-                || text.equals("progresso") || text.equals("meu progresso")
-                || text.equals("acertos") || text.equals("relatorio");
-    }
-
-    private boolean isReviewIntent(String text) {
-        return text.equals("revisar") || text.equals("/revisar") || text.equals("!revisar")
-                || text.equals("revisao") || text.equals("estudar") || text.equals("bora estudar")
-                || text.equals("questao") || text.equals("questoes")
-                || text.equals("quero revisar") || text.equals("comecar")
-                || text.equals("simulado") || text.equals("quiz");
-    }
-
-    private String normalize(String text) {
-        if (text == null) return "";
-        String n = Normalizer.normalize(text.trim().toLowerCase(), Normalizer.Form.NFD);
-        return n.replaceAll("\\p{M}", ""); // Remove acentos
     }
 
     private void handleStudentRegistration(String phone, UaiZapWebhookPayload payload) {
         String pushName = payload.extractSenderName();
 
+        Course defaultCourse = courseRepository.findByCodeIgnoreCase("MEDICINA")
+                .or(courseRepository::findFirstByActiveTrueOrderByIdAsc)
+                .orElse(null);
+
         Student newStudent = Student.builder()
                 .phoneNumber(phone)
-                .fullName(pushName)
-                .internPeriod(9)
+                .fullName(pushName != null && !pushName.isBlank() ? pushName : "Estudante")
+                .course(defaultCourse)
+                .academicPeriod(defaultCourse != null && "MEDICINA".equalsIgnoreCase(defaultCourse.getCode()) ? 9 : 1)
+                .internPeriod(defaultCourse != null && "MEDICINA".equalsIgnoreCase(defaultCourse.getCode()) ? 9 : 1)
                 .preferredStudyTime(LocalTime.of(8, 0))
                 .active(true)
                 .build();
         studentRepository.save(newStudent);
 
-        String welcomeMsg = messageService.getMessage("bot.welcome");
+        String courseName = defaultCourse != null ? defaultCourse.getName() : "Graduação";
+        String welcomeMsg = messageService.getMessage("bot.welcome", newStudent.getFullName(), courseName);
         messageSender.sendTextMessage(phone, welcomeMsg);
     }
 
-    private void handleQuestionAnswer(Student student, ReviewSchedule currentSchedule, String incomingMessage) {
+    private void handleQuestionAnswer(Student student, ReviewSchedule currentSchedule, char selectedLetter, String incomingMessage) {
         String phone = student.getPhoneNumber();
         Question question = currentSchedule.getQuestion();
 
-        String cleanAnswer = incomingMessage.toUpperCase().replaceAll("[^A-E]", "");
-        if (cleanAnswer.isEmpty()) {
-            String invalidMsg = messageService.getMessage("bot.answer.invalid");
-            messageSender.sendTextMessage(phone, invalidMsg);
-            return;
-        }
-
-        char selectedLetter = cleanAnswer.charAt(0);
         Optional<QuestionOption> correctOptionOpt = question.getOptions().stream()
                 .filter(QuestionOption::getIsCorrect)
                 .findFirst();
@@ -277,13 +273,14 @@ public class ChatbotServiceImpl implements ChatbotService {
                 .build();
         interactionLogRepository.save(logEntry);
 
-        // Montagem do feedback clínico via i18n
+        // Montagem do feedback pedagógico via i18n
         String feedback;
+        String explanation = question.getEffectiveExplanation();
         if (isCorrect) {
             feedback = messageService.getMessage(
                     "bot.answer.correct",
                     selectedLetter,
-                    question.getClinicalExplanation(),
+                    explanation,
                     result.getNIndex(),
                     result.getIntervalDays()
             );
@@ -292,7 +289,7 @@ public class ChatbotServiceImpl implements ChatbotService {
                     "bot.answer.incorrect",
                     selectedLetter,
                     correctLetter,
-                    question.getClinicalExplanation()
+                    explanation
             );
         }
 
@@ -331,10 +328,14 @@ public class ChatbotServiceImpl implements ChatbotService {
         long correctCount = logs.stream().filter(InteractionLog::getIsCorrect).count();
         double accuracyRate = totalAnswered > 0 ? ((double) correctCount / totalAnswered) * 100.0 : 0.0;
 
+        String courseName = student.getCourse() != null ? student.getCourse().getName() : "Graduação";
+        int period = student.getAcademicPeriod() != null ? student.getAcademicPeriod() : (student.getInternPeriod() != null ? student.getInternPeriod() : 1);
+
         String statsMsg = messageService.getMessage(
                 "bot.stats.title",
                 student.getFullName(),
-                student.getInternPeriod(),
+                courseName,
+                period,
                 totalAnswered,
                 correctCount,
                 String.format(messageService.getCurrentLocale(), "%.1f", accuracyRate),

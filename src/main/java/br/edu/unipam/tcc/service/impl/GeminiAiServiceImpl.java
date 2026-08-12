@@ -2,9 +2,11 @@ package br.edu.unipam.tcc.service.impl;
 
 import br.edu.unipam.tcc.config.GeminiProperties;
 import br.edu.unipam.tcc.dto.gemini.AiIntentResult;
-import br.edu.unipam.tcc.dto.gemini.GeminiApiDto;
 import br.edu.unipam.tcc.dto.gemini.GeminiApiDto.GeminiRequest;
 import br.edu.unipam.tcc.dto.gemini.GeminiApiDto.GeminiResponse;
+import br.edu.unipam.tcc.entity.InteractionLog;
+import br.edu.unipam.tcc.entity.Question;
+import br.edu.unipam.tcc.entity.Student;
 import br.edu.unipam.tcc.service.GeminiAiService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -36,35 +38,85 @@ public class GeminiAiServiceImpl implements GeminiAiService {
     }
 
     @Override
-    public AiIntentResult analyzeMessage(String studentName, String incomingMessage, List<String> availableSpecialties) {
+    public AiIntentResult analyzeMessage(
+            Student student,
+            String incomingMessage,
+            Question activeQuestion,
+            InteractionLog lastLog,
+            List<String> availableAreas
+    ) {
         if (!isAvailable()) {
-            log.debug("Gemini AI não está configurado ou está desabilitado. Utilizando fallback determinístico.");
+            log.debug("Gemini AI não está configurado ou está desabilitado. Utilizando fallback local.");
             return AiIntentResult.fallback(incomingMessage);
         }
 
         try {
-            log.info("🤖 Classificando intenção com Google Gemini [{}] para o estudante [{}]", properties.getModel(), studentName);
-            String specialtiesList = (availableSpecialties != null && !availableSpecialties.isEmpty())
-                    ? String.join(", ", availableSpecialties)
-                    : "PEDIATRIA, CLINICA_MEDICA, CIRURGIA_GERAL, GINECOLOGIA_OBSTETRICIA, SAUDE_COLETIVA";
+            String studentName = student != null ? student.getFullName() : "Estudante";
+            String courseName = (student != null && student.getCourse() != null) ? student.getCourse().getName() : "Ensino Superior";
+            String tutorPersona = (student != null && student.getCourse() != null)
+                    ? student.getCourse().getTutorPersona()
+                    : "Você é um Professor e Tutor acadêmico especialista auxiliando estudantes universitários.";
+            Integer period = (student != null) ? student.getAcademicPeriod() : 1;
+
+            String areasList = (availableAreas != null && !availableAreas.isEmpty())
+                    ? String.join(", ", availableAreas)
+                    : "GERAL";
+
+            StringBuilder contextBuilder = new StringBuilder();
+            if (activeQuestion != null) {
+                contextBuilder.append("\n[QUESTÃO ATIVA AGUARDANDO RESPOSTA]:\n")
+                        .append("Enunciado: \"").append(activeQuestion.getStatement()).append("\"\n");
+                if (activeQuestion.getOptions() != null) {
+                    activeQuestion.getOptions().forEach(opt ->
+                            contextBuilder.append(opt.getLetter()).append(") ").append(opt.getOptionText()).append("\n")
+                    );
+                }
+            }
+
+            if (lastLog != null && lastLog.getQuestion() != null) {
+                contextBuilder.append("\n[ÚLTIMA QUESTÃO RESPONDIDA RECENTEMENTE]:\n")
+                        .append("Enunciado: \"").append(lastLog.getQuestion().getStatement()).append("\"\n")
+                        .append("Gabarito/Justificativa: \"").append(lastLog.getQuestion().getEffectiveExplanation()).append("\"\n")
+                        .append("Opção escolhida pelo aluno: ").append(lastLog.getSelectedOption())
+                        .append(" (Acertou: ").append(lastLog.getIsCorrect()).append(")\n");
+            }
 
             String prompt = String.format("""
-                    Você é o assistente inteligente do Chatbot MMEEBB de Repetição Espaçada para estudantes de Medicina (Internato/Residência) da UNIPAM.
-                    Nome do Aluno: %s
-                    Especialidades médicas cadastradas: [%s]
+                    %s
                     
-                    Mensagem recebida do estudante: "%s"
+                    Perfil do Estudante:
+                    - Nome: %s
+                    - Curso: %s (%dº Período)
+                    - Áreas/Disciplinas disponíveis: [%s]
+                    %s
                     
-                    Analise a intenção do aluno e responda estritamente no seguinte formato:
-                    INTENT: <REQUEST_REVIEW | EXPLAIN_CONCEPT | STATS | HELP | GENERAL_CHAT | UNKNOWN>
-                    SPECIALTY: <Nome da especialidade médica se mencionada, ou NONE>
-                    REPLY: <Mensagem curta, amigável e motivadora (máximo 3 frases) em Português do Brasil para enviar ao aluno no WhatsApp>
+                    Mensagem recebida do estudante no WhatsApp: "%s"
+                    
+                    Instruções de Análise Semântica e NLU:
+                    1. Analise o que o aluno quer dizer. Não se limite a palavras exatas.
+                    2. Se o aluno estiver tentando responder à [QUESTÃO ATIVA] (seja com a letra diretamente ou discursivamente, ex: "acho que é a B", "com certeza letra C", "segunda alternativa"), classifique como ANSWER_ACTIVE_QUESTION e indique a opção em OPTION.
+                    3. Se o aluno estiver tirando dúvidas, pedindo explicação sobre uma questão recente ou conceito teórico ("não entendi", "por que a B está errada?", "me explica a matéria"), classifique como EXPLAIN_CONCEPT.
+                    4. Se o aluno quiser iniciar ou receber questões ("revisar", "manda questão", "quero estudar", "bora praticar"), classifique como REQUEST_REVIEW.
+                    5. Se o aluno quiser ver notas ou progresso ("como estou?", "desempenho", "estatísticas"), classifique como STATS.
+                    6. Se o aluno pedir ajuda ou instruções gerais sobre o bot ("ajuda", "como funciona", "socorro", "menu"), classifique como HELP.
+                    7. Se for conversa geral ou saudação ("olá", "bom dia", "valeu"), classifique como GENERAL_CHAT.
+                    
+                    Responda ESTRITAMENTE no seguinte formato:
+                    INTENT: <ANSWER_ACTIVE_QUESTION | EXPLAIN_CONCEPT | REQUEST_REVIEW | STATS | HELP | GENERAL_CHAT | UNKNOWN>
+                    OPTION: <A | B | C | D | E | NONE>
+                    AREA: <Nome da área/disciplina se mencionada, ou NONE>
+                    REPLY: <Mensagem amigável, motivadora e no tom do curso do aluno (máximo 3 frases) em Português do Brasil para enviar no WhatsApp>
                     """,
-                    studentName != null ? studentName : "Estudante",
-                    specialtiesList,
+                    tutorPersona,
+                    studentName,
+                    courseName,
+                    period,
+                    areasList,
+                    contextBuilder.toString(),
                     incomingMessage
             );
 
+            log.info("🤖 NLU com Google Gemini [{}] para o estudante [{}] ({})", properties.getModel(), studentName, courseName);
             String geminiText = callGeminiApi(prompt);
             return parseAiIntentResponse(geminiText, incomingMessage);
 
@@ -75,17 +127,29 @@ public class GeminiAiServiceImpl implements GeminiAiService {
     }
 
     @Override
-    public String generateClinicalTutorExplanation(String studentName, String statement, String clinicalExplanation, String studentDoubt) {
-        if (!isAvailable()) {
-            return clinicalExplanation;
+    public AiIntentResult analyzeMessage(String studentName, String incomingMessage, List<String> availableSpecialties) {
+        Student dummy = Student.builder().fullName(studentName).academicPeriod(1).build();
+        return analyzeMessage(dummy, incomingMessage, null, null, availableSpecialties);
+    }
+
+    @Override
+    public String generateAcademicTutorExplanation(Student student, Question question, String studentDoubt) {
+        if (!isAvailable() || question == null) {
+            return question != null ? question.getEffectiveExplanation() : "";
         }
 
         try {
-            log.info("🩺 Gerando explicação do Tutor Clínico com Google Gemini [{}] para o estudante [{}]", properties.getModel(), studentName);
+            String studentName = student != null ? student.getFullName() : "Estudante";
+            String courseName = (student != null && student.getCourse() != null) ? student.getCourse().getName() : "Ensino Superior";
+            String tutorPersona = (student != null && student.getCourse() != null)
+                    ? student.getCourse().getTutorPersona()
+                    : "Você é um Professor e Tutor especialista auxiliando estudantes universitários.";
+
+            log.info("🎓 Gerando explicação do Tutor Acadêmico [{}] ({}) para o estudante [{}]", properties.getModel(), courseName, studentName);
             String prompt = String.format("""
-                    Você é um Preceptor e Tutor Médico especialista auxiliando um interno de medicina chamado %s.
+                    %s Auxilie o estudante %s do curso de %s.
                     
-                    Caso Clínico:
+                    Questão / Caso:
                     "%s"
                     
                     Gabarito / Justificativa Oficial:
@@ -95,23 +159,32 @@ public class GeminiAiServiceImpl implements GeminiAiService {
                     "%s"
                     
                     Instruções:
-                    1. Responda de forma didática, encorajadora e direta em Português do Brasil.
-                    2. Explique a fisiopatologia ou a diretriz clínica relevante respondendo especificamente à dúvida do aluno.
-                    3. Seja conciso (máximo 4 a 5 parágrafos curtos formatados para o WhatsApp).
+                    1. Responda de forma didática, encorajadora, respeitosa e direta em Português do Brasil.
+                    2. Explique os fundamentos doutrinários, teóricos, normativos ou científicos respondendo diretamente à dúvida do aluno.
+                    3. Seja conciso (máximo 4 a 5 parágrafos curtos formatados com negritos para o WhatsApp).
                     """,
-                    studentName != null ? studentName : "Colega",
-                    statement != null ? statement : "",
-                    clinicalExplanation != null ? clinicalExplanation : "",
+                    tutorPersona,
+                    studentName,
+                    courseName,
+                    question.getStatement() != null ? question.getStatement() : "",
+                    question.getEffectiveExplanation(),
                     studentDoubt
             );
 
             String tutorResponse = callGeminiApi(prompt);
-            return (tutorResponse != null && !tutorResponse.isBlank()) ? tutorResponse : clinicalExplanation;
+            return (tutorResponse != null && !tutorResponse.isBlank()) ? tutorResponse : question.getEffectiveExplanation();
 
         } catch (Exception e) {
             log.warn("Erro ao gerar explicação de tutor com Gemini: {}. Retornando explicação padrão.", e.getMessage());
-            return clinicalExplanation;
+            return question.getEffectiveExplanation();
         }
+    }
+
+    @Override
+    public String generateClinicalTutorExplanation(String studentName, String statement, String clinicalExplanation, String studentDoubt) {
+        Question dummy = Question.builder().statement(statement).clinicalExplanation(clinicalExplanation).explanation(clinicalExplanation).build();
+        Student dummyStudent = Student.builder().fullName(studentName).build();
+        return generateAcademicTutorExplanation(dummyStudent, dummy, studentDoubt);
     }
 
     private String callGeminiApi(String prompt) {
@@ -134,7 +207,8 @@ public class GeminiAiServiceImpl implements GeminiAiService {
         }
 
         AiIntentResult.IntentType intent = AiIntentResult.IntentType.UNKNOWN;
-        String specialty = null;
+        Character option = null;
+        String area = null;
         String reply = null;
 
         String[] lines = rawText.split("\\r?\\n");
@@ -147,10 +221,16 @@ public class GeminiAiServiceImpl implements GeminiAiService {
                 } catch (IllegalArgumentException ignored) {
                     intent = AiIntentResult.IntentType.UNKNOWN;
                 }
-            } else if (trimmed.startsWith("SPECIALTY:")) {
-                String specStr = trimmed.substring("SPECIALTY:".length()).trim();
-                if (!specStr.equalsIgnoreCase("NONE") && !specStr.isBlank()) {
-                    specialty = specStr.toUpperCase();
+            } else if (trimmed.startsWith("OPTION:")) {
+                String optStr = trimmed.substring("OPTION:".length()).trim().toUpperCase();
+                if (!optStr.equalsIgnoreCase("NONE") && !optStr.isEmpty()) {
+                    option = optStr.charAt(0);
+                }
+            } else if (trimmed.startsWith("AREA:") || trimmed.startsWith("SPECIALTY:")) {
+                int colonIdx = trimmed.indexOf(':');
+                String areaStr = trimmed.substring(colonIdx + 1).trim();
+                if (!areaStr.equalsIgnoreCase("NONE") && !areaStr.isBlank()) {
+                    area = areaStr.toUpperCase();
                 }
             } else if (trimmed.startsWith("REPLY:")) {
                 reply = trimmed.substring("REPLY:".length()).trim();
@@ -163,7 +243,8 @@ public class GeminiAiServiceImpl implements GeminiAiService {
 
         return AiIntentResult.builder()
                 .intent(intent)
-                .targetSpecialty(specialty)
+                .extractedOption(option)
+                .targetKnowledgeArea(area)
                 .responseMessage(reply)
                 .handledByAi(true)
                 .build();

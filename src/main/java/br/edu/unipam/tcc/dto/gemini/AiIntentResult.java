@@ -12,6 +12,7 @@ import lombok.NoArgsConstructor;
 public class AiIntentResult {
 
     public enum IntentType {
+        ANSWER_ACTIVE_QUESTION,
         REQUEST_REVIEW,
         EXPLAIN_CONCEPT,
         STATS,
@@ -21,7 +22,8 @@ public class AiIntentResult {
     }
 
     private IntentType intent;
-    private String targetSpecialty;
+    private Character extractedOption;
+    private String targetKnowledgeArea;
     private String responseMessage;
     private boolean handledByAi;
 

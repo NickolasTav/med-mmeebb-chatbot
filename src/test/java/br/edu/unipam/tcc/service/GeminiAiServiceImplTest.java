@@ -2,6 +2,10 @@ package br.edu.unipam.tcc.service;
 
 import br.edu.unipam.tcc.config.GeminiProperties;
 import br.edu.unipam.tcc.dto.gemini.AiIntentResult;
+import br.edu.unipam.tcc.entity.Course;
+import br.edu.unipam.tcc.entity.Question;
+import br.edu.unipam.tcc.entity.QuestionOption;
+import br.edu.unipam.tcc.entity.Student;
 import br.edu.unipam.tcc.service.impl.GeminiAiServiceImpl;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -44,8 +48,8 @@ class GeminiAiServiceImplTest {
     }
 
     @Test
-    @DisplayName("Deve identificar intenção de revisão com especialidade médica quando o aluno solicitar")
-    void testAnalyzeMessage_RequestReviewSpecialty() {
+    @DisplayName("Deve extrair intenção ANSWER_ACTIVE_QUESTION e letra da opção em resposta discursiva do aluno")
+    void testAnalyzeMessage_DiscursiveAnswerExtraction() {
         String jsonResponse = """
                 {
                   "candidates": [
@@ -53,7 +57,7 @@ class GeminiAiServiceImplTest {
                       "content": {
                         "parts": [
                           {
-                            "text": "INTENT: REQUEST_REVIEW\\nSPECIALTY: PEDIATRIA\\nREPLY: Perfeito! Vou buscar uma questão de Pediatria para você revisar agora."
+                            "text": "INTENT: ANSWER_ACTIVE_QUESTION\\nOPTION: B\\nAREA: DIR_CONSTITUCIONAL\\nREPLY: Entendido! Processando sua resposta..."
                           }
                         ]
                       }
@@ -67,22 +71,35 @@ class GeminiAiServiceImplTest {
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                 .andRespond(withSuccess(jsonResponse, MediaType.APPLICATION_JSON));
 
+        Course lawCourse = Course.builder().code("DIREITO").name("Direito").tutorPersona("Você é um Professor Jurista").build();
+        Student student = Student.builder().fullName("Mariana").course(lawCourse).academicPeriod(7).build();
+        Question activeQuestion = Question.builder()
+                .statement("Qual remédio constitucional é cabível...")
+                .options(List.of(
+                        QuestionOption.builder().letter('A').optionText("Mandado de Segurança").build(),
+                        QuestionOption.builder().letter('B').optionText("Habeas Data").build()
+                ))
+                .build();
+
         AiIntentResult result = geminiAiService.analyzeMessage(
-                "Níckolas",
-                "Quero praticar casos de pediatria hoje",
-                List.of("PEDIATRIA", "CARDIOLOGIA", "GINECOLOGIA")
+                student,
+                "Acho que a resposta certa é a alternativa B por se tratar de dados pessoais",
+                activeQuestion,
+                null,
+                List.of("DIR_CONSTITUCIONAL", "DIR_PENAL")
         );
 
         assertThat(result).isNotNull();
-        assertThat(result.getIntent()).isEqualTo(AiIntentResult.IntentType.REQUEST_REVIEW);
-        assertThat(result.getTargetSpecialty()).isEqualTo("PEDIATRIA");
+        assertThat(result.getIntent()).isEqualTo(AiIntentResult.IntentType.ANSWER_ACTIVE_QUESTION);
+        assertThat(result.getExtractedOption()).isEqualTo('B');
+        assertThat(result.getTargetKnowledgeArea()).isEqualTo("DIR_CONSTITUCIONAL");
         assertThat(result.isHandledByAi()).isTrue();
         mockServer.verify();
     }
 
     @Test
-    @DisplayName("Deve atuar como Tutor Clínico e gerar explicação médica pedagógica")
-    void testGenerateClinicalTutorExplanation_Success() {
+    @DisplayName("Deve atuar como Tutor Acadêmico para Direito e Engenharia de Software")
+    void testGenerateAcademicTutorExplanation_LawCourse() {
         String jsonResponse = """
                 {
                   "candidates": [
@@ -90,7 +107,7 @@ class GeminiAiServiceImplTest {
                       "content": {
                         "parts": [
                           {
-                            "text": "Olá Níckolas! Na crise de asma aguda grave, o uso imediato de beta-2 agonista inalatório é a primeira linha devido ao rápido relaxamento do músculo liso bronquial."
+                            "text": "Olá Mariana! Conforme o art. 5º, LXXII da CF/88, o Habeas Data protege o direito de acesso e retificação de informações pessoais."
                           }
                         ]
                       }
@@ -103,15 +120,22 @@ class GeminiAiServiceImplTest {
                 .andExpect(method(HttpMethod.POST))
                 .andRespond(withSuccess(jsonResponse, MediaType.APPLICATION_JSON));
 
-        String explanation = geminiAiService.generateClinicalTutorExplanation(
-                "Níckolas",
-                "Paciente de 8 anos com crise asmática grave...",
-                "O tratamento de primeira linha consiste em Salbutamol inalatório.",
-                "Por que não administrar corticoide isolado de início?"
+        Course lawCourse = Course.builder().code("DIREITO").name("Direito").tutorPersona("Você é um Professor Jurista").build();
+        Student student = Student.builder().fullName("Mariana").course(lawCourse).academicPeriod(7).build();
+        Question question = Question.builder()
+                .statement("Cabimento do Habeas Data")
+                .clinicalExplanation("Art. 5º, LXXII da CF/88")
+                .explanation("Art. 5º, LXXII da CF/88")
+                .build();
+
+        String explanation = geminiAiService.generateAcademicTutorExplanation(
+                student,
+                question,
+                "Por que não cabe Mandado de Segurança aqui?"
         );
 
         assertThat(explanation).isNotBlank();
-        assertThat(explanation).contains("Olá Níckolas!");
+        assertThat(explanation).contains("Olá Mariana!");
         mockServer.verify();
     }
 

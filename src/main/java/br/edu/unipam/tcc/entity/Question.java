@@ -36,6 +36,16 @@ public class Question {
     @Column(name = "clinical_explanation", nullable = false, columnDefinition = "TEXT")
     private String clinicalExplanation;
 
+    @Column(name = "explanation", columnDefinition = "TEXT")
+    private String explanation;
+
+    public String getEffectiveExplanation() {
+        if (explanation != null && !explanation.isBlank()) {
+            return explanation;
+        }
+        return clinicalExplanation != null ? clinicalExplanation : "";
+    }
+
     @Column(name = "difficulty", nullable = false, length = 20)
     @Builder.Default
     private String difficulty = "MEDIUM";

@@ -30,8 +30,8 @@ class MessageServiceImplTest {
     @Test
     @DisplayName("Deve buscar mensagem em Português (padrão) com interpolação de parâmetros")
     void shouldGetPortugueseMessage() {
-        String msg = messageService.getMessage("bot.welcome");
-        assertThat(msg).contains("Bem-vindo(a) ao *Bot de Repetição Espaçada do Internato");
+        String msg = messageService.getMessage("bot.welcome", "Lucas", "Medicina");
+        assertThat(msg).contains("Bem-vindo(a) ao *Bot MMEEBB de Repetição Espaçada (Medicina - UNIPAM)*");
 
         String menu = messageService.getMessage("bot.menu", "Lucas");
         assertThat(menu).contains("Olá, *Lucas*!");
@@ -40,8 +40,8 @@ class MessageServiceImplTest {
     @Test
     @DisplayName("Deve buscar mensagem em Inglês quando Locale.ENGLISH for especificado")
     void shouldGetEnglishMessage() {
-        String msg = messageService.getMessage("bot.welcome", Locale.ENGLISH);
-        assertThat(msg).contains("Welcome to the *Medical Internship Spaced Repetition Bot");
+        String msg = messageService.getMessage("bot.welcome", Locale.ENGLISH, "Lucas", "Medicine");
+        assertThat(msg).contains("Welcome to the *MMEEBB Spaced Repetition Bot (Medicine - UNIPAM)*");
 
         String menu = messageService.getMessage("bot.menu", Locale.ENGLISH, "Lucas");
         assertThat(menu).contains("Hello, *Lucas*!");
@@ -50,8 +50,8 @@ class MessageServiceImplTest {
     @Test
     @DisplayName("Deve buscar mensagem em Espanhol quando Locale('es') for especificado")
     void shouldGetSpanishMessage() {
-        String msg = messageService.getMessage("bot.welcome", Locale.forLanguageTag("es"));
-        assertThat(msg).contains("Bienvenido(a) al *Bot de Repetición Espaciada del Internado");
+        String msg = messageService.getMessage("bot.welcome", Locale.forLanguageTag("es"), "Lucas", "Medicina");
+        assertThat(msg).contains("Bienvenido(a) al *Bot MMEEBB de Repetición Espaciada (Medicina - UNIPAM)*");
 
         String menu = messageService.getMessage("bot.menu", Locale.forLanguageTag("es"), "Lucas");
         assertThat(menu).contains("¡Hola, *Lucas*!");
