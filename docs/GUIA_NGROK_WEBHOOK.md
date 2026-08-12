@@ -143,7 +143,7 @@ sequenceDiagram
     Wpp->>Ngrok: POST https://sua-url.ngrok-free.app/api/v1/webhooks/uaizap
     Ngrok->>App: Repassa para http://localhost:8080/api/v1/webhooks/uaizap
     App-->>Wpp: Responde instantâneo 200 OK
-    App->>Rabbit: Publica mensagem na fila q.uaizap.inbound.messages
+    App->>Rabbit: Publica mensagem na fila q.uaizap.inbound
     Rabbit->>App: Consumer consome mensagem
     App->>Gemini: Classifica intenção e especialidade
     Gemini-->>App: Retorna intenção REQUEST_REVIEW (Pediatria)

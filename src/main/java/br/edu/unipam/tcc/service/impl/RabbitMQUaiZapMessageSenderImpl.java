@@ -16,17 +16,14 @@ import java.util.Comparator;
 public class RabbitMQUaiZapMessageSenderImpl implements WhatsAppMessageSender {
 
     private final RabbitTemplate rabbitTemplate;
-    private final String directExchange;
-    private final String outboundRoutingKey;
+    private final String outboundQueue;
 
     public RabbitMQUaiZapMessageSenderImpl(
             RabbitTemplate rabbitTemplate,
-            @Value("${rabbitmq.exchanges.med-direct:ex.med.direct}") String directExchange,
-            @Value("${rabbitmq.routing-keys.outbound:rk.uaizap.outbound}") String outboundRoutingKey
+            @Value("${rabbitmq.queues.outbound:q.uaizap.outbound}") String outboundQueue
     ) {
         this.rabbitTemplate = rabbitTemplate;
-        this.directExchange = directExchange;
-        this.outboundRoutingKey = outboundRoutingKey;
+        this.outboundQueue = outboundQueue;
     }
 
     @Override
@@ -40,8 +37,8 @@ public class RabbitMQUaiZapMessageSenderImpl implements WhatsAppMessageSender {
                 .text(text)
                 .build();
 
-        rabbitTemplate.convertAndSend(directExchange, outboundRoutingKey, request);
-        log.info("📤 Resposta enfileirada no RabbitMQ [{}] para envio ao WhatsApp [{}]", outboundRoutingKey, phoneNumber);
+        rabbitTemplate.convertAndSend(outboundQueue, request);
+        log.info("📤 Resposta enfileirada no RabbitMQ [Fila: '{}'] para envio ao WhatsApp [{}]", outboundQueue, phoneNumber);
     }
 
     @Override

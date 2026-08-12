@@ -29,12 +29,11 @@ class RabbitMQUaiZapMessageSenderImplTest {
 
     private RabbitMQUaiZapMessageSenderImpl sender;
 
-    private final String exchange = "ex.med.direct";
-    private final String routingKey = "rk.uaizap.outbound";
+    private final String outboundQueue = "q.uaizap.outbound.test";
 
     @BeforeEach
     void setUp() {
-        sender = new RabbitMQUaiZapMessageSenderImpl(rabbitTemplate, exchange, routingKey);
+        sender = new RabbitMQUaiZapMessageSenderImpl(rabbitTemplate, outboundQueue);
     }
 
     @Test
@@ -46,7 +45,7 @@ class RabbitMQUaiZapMessageSenderImplTest {
         sender.sendTextMessage(phone, message);
 
         ArgumentCaptor<UaiZapSendTextRequest> captor = ArgumentCaptor.forClass(UaiZapSendTextRequest.class);
-        verify(rabbitTemplate).convertAndSend(eq(exchange), eq(routingKey), captor.capture());
+        verify(rabbitTemplate).convertAndSend(eq(outboundQueue), captor.capture());
 
         UaiZapSendTextRequest captured = captor.getValue();
         assertThat(captured.getNumber()).isEqualTo(phone);
@@ -70,7 +69,7 @@ class RabbitMQUaiZapMessageSenderImplTest {
         sender.sendInteractiveQuestion("5534999999999", question);
 
         ArgumentCaptor<UaiZapSendTextRequest> captor = ArgumentCaptor.forClass(UaiZapSendTextRequest.class);
-        verify(rabbitTemplate).convertAndSend(eq(exchange), eq(routingKey), captor.capture());
+        verify(rabbitTemplate).convertAndSend(eq(outboundQueue), captor.capture());
 
         UaiZapSendTextRequest captured = captor.getValue();
         assertThat(captured.getText()).contains("Cardiologia");

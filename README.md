@@ -107,7 +107,7 @@ flowchart TD
     Aluno -->|Envia mensagem / Resposta| UaiZapAPI
     UaiZapAPI -->|Webhook HTTP POST| WebhookController
     WebhookController -->|Enfileira Mensagem| RabbitMQBroker
-    RabbitMQBroker -->|q.uaizap.inbound.messages| InboundConsumer
+    RabbitMQBroker -->|q.uaizap.inbound| InboundConsumer
     InboundConsumer --> ChatbotService
     ChatbotService -->|Fast-Path: Questão / Comandos| MmeebbEngine
     ChatbotService -->|Caminho Cognitivo: Dúvidas / Intenções| GeminiService
@@ -116,8 +116,8 @@ flowchart TD
     ChatbotService --> MessageService
 
     Scheduler -->|Trigger Diário| MmeebbEngine
-    Scheduler -->|q.uaizap.outbound.dispatches| RabbitMQBroker
-    RabbitMQBroker -->|q.uaizap.outbound.dispatches| OutboundConsumer
+    Scheduler -->|q.uaizap.outbound| RabbitMQBroker
+    RabbitMQBroker -->|q.uaizap.outbound| OutboundConsumer
     OutboundConsumer -->|Disparo Ativo HTTP| UaiZapAPI
     UaiZapAPI -->|Notificação Push| Aluno
 ```

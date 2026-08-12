@@ -15,17 +15,14 @@ import java.util.Map;
 public class UaiZapWebhookController {
 
     private final RabbitTemplate rabbitTemplate;
-    private final String directExchange;
-    private final String inboundRoutingKey;
+    private final String inboundQueue;
 
     public UaiZapWebhookController(
             RabbitTemplate rabbitTemplate,
-            @Value("${rabbitmq.exchanges.med-direct:ex.med.direct}") String directExchange,
-            @Value("${rabbitmq.routing-keys.inbound:rk.uaizap.inbound}") String inboundRoutingKey
+            @Value("${rabbitmq.queues.inbound:q.uaizap.inbound}") String inboundQueue
     ) {
         this.rabbitTemplate = rabbitTemplate;
-        this.directExchange = directExchange;
-        this.inboundRoutingKey = inboundRoutingKey;
+        this.inboundQueue = inboundQueue;
     }
 
     @PostMapping
@@ -52,8 +49,8 @@ public class UaiZapWebhookController {
                     eventName, phone, messageId);
 
             // Envia imediatamente para a fila assíncrona RabbitMQ (SLA < 100ms)
-            rabbitTemplate.convertAndSend(directExchange, inboundRoutingKey, payload);
-            log.info("🐰 Mensagem enfileirada no RabbitMQ [Exchange: '{}', Key: '{}'] com sucesso", directExchange, inboundRoutingKey);
+            rabbitTemplate.convertAndSend(inboundQueue, payload);
+            log.info("🐰 Mensagem enfileirada no RabbitMQ [Fila: '{}'] com sucesso", inboundQueue);
 
             java.util.Map<String, Object> responseBody = new java.util.LinkedHashMap<>();
             responseBody.put("status", "QUEUED");

@@ -25,12 +25,11 @@ class UaiZapWebhookControllerTest {
 
     private UaiZapWebhookController controller;
 
-    private final String exchange = "ex.med.direct";
-    private final String routingKey = "rk.uaizap.inbound";
+    private final String inboundQueue = "q.uaizap.inbound.test";
 
     @BeforeEach
     void setUp() {
-        controller = new UaiZapWebhookController(rabbitTemplate, exchange, routingKey);
+        controller = new UaiZapWebhookController(rabbitTemplate, inboundQueue);
     }
 
     @Test
@@ -51,7 +50,7 @@ class UaiZapWebhookControllerTest {
 
         assertThat(response.getStatusCode().is2xxSuccessful()).isTrue();
         assertThat(response.getBody()).containsEntry("status", "QUEUED");
-        verify(rabbitTemplate).convertAndSend(eq(exchange), eq(routingKey), eq(payload));
+        verify(rabbitTemplate).convertAndSend(eq(inboundQueue), eq(payload));
     }
 
     @Test
@@ -93,7 +92,7 @@ class UaiZapWebhookControllerTest {
 
         assertThat(response.getStatusCode().is2xxSuccessful()).isTrue();
         assertThat(response.getBody()).containsEntry("status", "QUEUED");
-        verify(rabbitTemplate).convertAndSend(eq(exchange), eq(routingKey), eq(payload));
+        verify(rabbitTemplate).convertAndSend(eq(inboundQueue), eq(payload));
     }
 
     @Test
@@ -144,7 +143,7 @@ class UaiZapWebhookControllerTest {
         assertThat(response.getStatusCode().is2xxSuccessful()).isTrue();
         assertThat(response.getBody()).containsEntry("status", "QUEUED");
         assertThat(response.getBody()).containsEntry("event", "messages");
-        verify(rabbitTemplate).convertAndSend(eq(exchange), eq(routingKey), eq(payload));
+        verify(rabbitTemplate).convertAndSend(eq(inboundQueue), eq(payload));
     }
 
     @Test

@@ -1,6 +1,7 @@
 package br.edu.unipam.tcc.config;
 
-import org.springframework.amqp.core.*;
+import org.springframework.amqp.core.Queue;
+import org.springframework.amqp.core.QueueBuilder;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
@@ -9,48 +10,22 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+/**
+ * Configuração simplificada de mensageria RabbitMQ (Padrão Direct-to-Queue / Chatbot).
+ * Utiliza a Default Exchange do AMQP para roteamento direto por nome de fila,
+ * eliminando boilerplate de routing keys e exchanges intermediárias.
+ */
 @Configuration
 public class RabbitMQConfig {
 
-    @Value("${rabbitmq.exchanges.med-direct:ex.med.direct}")
-    private String directExchange;
-
-    @Value("${rabbitmq.exchanges.dead-letter:ex.med.dlx}")
-    private String dlxExchange;
-
-    @Value("${rabbitmq.queues.uaizap-inbound:q.uaizap.inbound.messages}")
+    @Value("${rabbitmq.queues.inbound:q.uaizap.inbound}")
     private String inboundQueue;
 
-    @Value("${rabbitmq.queues.mmeebb-evaluations:q.med.mmeebb.evaluations}")
-    private String evaluationsQueue;
-
-    @Value("${rabbitmq.queues.uaizap-outbound:q.uaizap.outbound.dispatches}")
+    @Value("${rabbitmq.queues.outbound:q.uaizap.outbound}")
     private String outboundQueue;
 
-    @Value("${rabbitmq.queues.dead-letter:q.med.deadletter}")
+    @Value("${rabbitmq.queues.dlq:q.med.dlq}")
     private String dlqQueue;
-
-    @Value("${rabbitmq.routing-keys.inbound:rk.uaizap.inbound}")
-    private String inboundRoutingKey;
-
-    @Value("${rabbitmq.routing-keys.evaluations:rk.med.evaluations}")
-    private String evaluationsRoutingKey;
-
-    @Value("${rabbitmq.routing-keys.outbound:rk.uaizap.outbound}")
-    private String outboundRoutingKey;
-
-    @Value("${rabbitmq.routing-keys.dead-letter:rk.med.dlq}")
-    private String dlqRoutingKey;
-
-    @Bean
-    public DirectExchange exchange() {
-        return new DirectExchange(directExchange, true, false);
-    }
-
-    @Bean
-    public DirectExchange deadLetterExchange() {
-        return new DirectExchange(dlxExchange, true, false);
-    }
 
     @Bean
     public Queue deadLetterQueue() {
@@ -58,47 +33,19 @@ public class RabbitMQConfig {
     }
 
     @Bean
-    public Binding deadLetterBinding() {
-        return BindingBuilder.bind(deadLetterQueue()).to(deadLetterExchange()).with(dlqRoutingKey);
-    }
-
-    @Bean
     public Queue inboundQueue() {
         return QueueBuilder.durable(inboundQueue)
-                .withArgument("x-dead-letter-exchange", dlxExchange)
-                .withArgument("x-dead-letter-routing-key", dlqRoutingKey)
+                .withArgument("x-dead-letter-exchange", "")
+                .withArgument("x-dead-letter-routing-key", dlqQueue)
                 .build();
-    }
-
-    @Bean
-    public Binding inboundBinding() {
-        return BindingBuilder.bind(inboundQueue()).to(exchange()).with(inboundRoutingKey);
-    }
-
-    @Bean
-    public Queue evaluationsQueue() {
-        return QueueBuilder.durable(evaluationsQueue)
-                .withArgument("x-dead-letter-exchange", dlxExchange)
-                .withArgument("x-dead-letter-routing-key", dlqRoutingKey)
-                .build();
-    }
-
-    @Bean
-    public Binding evaluationsBinding() {
-        return BindingBuilder.bind(evaluationsQueue()).to(exchange()).with(evaluationsRoutingKey);
     }
 
     @Bean
     public Queue outboundQueue() {
         return QueueBuilder.durable(outboundQueue)
-                .withArgument("x-dead-letter-exchange", dlxExchange)
-                .withArgument("x-dead-letter-routing-key", dlqRoutingKey)
+                .withArgument("x-dead-letter-exchange", "")
+                .withArgument("x-dead-letter-routing-key", dlqQueue)
                 .build();
-    }
-
-    @Bean
-    public Binding outboundBinding() {
-        return BindingBuilder.bind(outboundQueue()).to(exchange()).with(outboundRoutingKey);
     }
 
     @Bean
@@ -126,4 +73,5 @@ public class RabbitMQConfig {
         return factory;
     }
 }
+
 

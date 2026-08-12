@@ -69,8 +69,8 @@ public class UaiZapOutboundConsumer {
     }
 
     @RabbitListener(
-            queues = "${rabbitmq.queues.uaizap-outbound:q.uaizap.outbound.dispatches}",
-            concurrency = "${rabbitmq.listeners.uaizap-outbound.concurrency:1}"
+            queues = "${rabbitmq.queues.outbound:q.uaizap.outbound}",
+            concurrency = "${rabbitmq.listeners.outbound.concurrency:1}"
     )
     public void consumeOutboundDispatch(UaiZapSendTextRequest request) {
         if (request == null || request.getNumber() == null || request.getText() == null || request.getNumber().isBlank()) {

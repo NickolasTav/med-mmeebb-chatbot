@@ -7,8 +7,8 @@ Este documento descreve detalhadamente a arquitetura de integração, contratos 
 ## 🏗️ 1. Arquitetura da Integração
 
 A integração com o WhatsApp opera em um modelo **Híbrido e Assíncrono**:
-- **Inbound (Entrada de Mensagens do Estudante)**: Webhook HTTP `POST` recebido pelo Spring Boot ➔ Validação de Segurança ➔ Broker **RabbitMQ** (`q.uaizap.inbound.messages`) ➔ Resposta HTTP imediata `200 OK`.
-- **Outbound (Disparo de Questões e Feedbacks)**: Fila RabbitMQ (`q.uaizap.outbound.dispatches`) ➔ Consumidor com controle de vazão (Taxa de 1 msg / ~6s) ➔ Chamada REST `POST` para a API do UaiZap.
+- **Inbound (Entrada de Mensagens do Estudante)**: Webhook HTTP `POST` recebido pelo Spring Boot ➔ Validação de Segurança ➔ Broker **RabbitMQ** (`q.uaizap.inbound`) ➔ Resposta HTTP imediata `200 OK`.
+- **Outbound (Disparo de Questões e Feedbacks)**: Fila RabbitMQ (`q.uaizap.outbound`) ➔ Consumidor com controle de vazão (Taxa de 1 msg / ~6s) ➔ Chamada REST `POST` para a API do UaiZap.
 
 ```mermaid
 flowchart LR
@@ -22,9 +22,9 @@ flowchart LR
 
     subgraph Backend_SpringBoot["⚡ Backend Spring Boot (MMEEBB)"]
         Ctrl["UaiZapWebhookController<br/>/api/v1/webhooks/uaizap"]
-        Q_In[("RabbitMQ<br/>q.uaizap.inbound.messages")]
+        Q_In[("RabbitMQ<br/>q.uaizap.inbound")]
         Engine["MmeebbEngine / Gemini IA"]
-        Q_Out[("RabbitMQ<br/>q.uaizap.outbound.dispatches")]
+        Q_Out[("RabbitMQ<br/>q.uaizap.outbound")]
         OutConsumer["UaiZapOutboundConsumer<br/>(Delay + Presence)"]
     end
 

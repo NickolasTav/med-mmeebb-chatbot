@@ -55,24 +55,15 @@ uaizap:
   webhook:
     secret-token: ${UAIZAP_WEBHOOK_SECRET:med_secret_key_123}
 
-# Filas RabbitMQ
+# Filas RabbitMQ (Padrão Direct-to-Queue)
 rabbitmq:
   queues:
-    uaizap-inbound: q.uaizap.inbound.messages
-    mmeebb-evaluations: q.med.mmeebb.evaluations
-    uaizap-outbound: q.uaizap.outbound.dispatches
-    dead-letter: q.med.deadletter
+    inbound: ${RABBITMQ_INBOUND_QUEUE:q.uaizap.inbound}
+    outbound: ${RABBITMQ_OUTBOUND_QUEUE:q.uaizap.outbound}
+    dlq: ${RABBITMQ_DLQ_QUEUE:q.med.dlq}
   listeners:
-    uaizap-outbound:
+    outbound:
       concurrency: ${RABBITMQ_OUTBOUND_CONCURRENCY:1} # Concorrência unitária para fila estritamente sequencial
-  exchanges:
-    med-direct: ex.med.direct
-    dead-letter: ex.med.dlx
-  routing-keys:
-    inbound: rk.uaizap.inbound
-    evaluations: rk.med.evaluations
-    outbound: rk.uaizap.outbound
-    dead-letter: rk.med.dlq
 
 # Inteligência Artificial (LLM) - Google Gemini
 gemini:

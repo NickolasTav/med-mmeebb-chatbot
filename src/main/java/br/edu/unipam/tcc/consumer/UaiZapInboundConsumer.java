@@ -14,7 +14,7 @@ public class UaiZapInboundConsumer {
 
     private final ChatbotService chatbotService;
 
-    @RabbitListener(queues = "${rabbitmq.queues.uaizap-inbound:q.uaizap.inbound.messages}")
+    @RabbitListener(queues = "${rabbitmq.queues.inbound:q.uaizap.inbound}")
     public void consumeInboundMessage(UaiZapWebhookPayload payload) {
         if (payload == null) {
             return;
@@ -25,7 +25,7 @@ public class UaiZapInboundConsumer {
 
         br.edu.unipam.tcc.config.CorrelationMdcHelper.setContext(phone, messageId, "RABBITMQ_INBOUND_CONSUME");
         try {
-            log.info("🐰 Consumindo mensagem da fila RabbitMQ [q.uaizap.inbound.messages] para o aluno [{}]", phone);
+            log.info("🐰 Consumindo mensagem da fila RabbitMQ [q.uaizap.inbound] para o aluno [{}]", phone);
             chatbotService.processIncomingMessage(payload);
             log.info("✅ Mensagem processada pelo ChatbotService com sucesso para o aluno [{}]", phone);
         } catch (Exception e) {
