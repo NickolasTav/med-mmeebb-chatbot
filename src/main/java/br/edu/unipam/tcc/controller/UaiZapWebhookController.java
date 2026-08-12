@@ -48,7 +48,6 @@ public class UaiZapWebhookController {
             log.info("📥 Webhook UaiZap recebido: evento [{}] do remetente [{}] (MessageId: {})", 
                     eventName, phone, messageId);
 
-            // Envia imediatamente para a fila assíncrona RabbitMQ (SLA < 100ms)
             rabbitTemplate.convertAndSend(inboundQueue, payload);
             log.info("🐰 Mensagem enfileirada no RabbitMQ [Fila: '{}'] com sucesso", inboundQueue);
 
